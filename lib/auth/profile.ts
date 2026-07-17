@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { createClient } from "@/lib/supabase/server";
 
 export type ProfileRole = "researcher" | "committee" | "manager";
@@ -57,4 +59,25 @@ export function homePathForProfile(profile: Profile | null): string {
     return "/dashboard";
   }
   return "/pending";
+}
+
+/**
+ * Guard for manager-only routes. Redirects unauthenticated users to login and
+ * bounces non-managers to their own home. Returns the manager's identity on
+ * success. Mirrors the inline guard used across /manager pages.
+ */
+export async function requireManager(): Promise<{
+  userId: string;
+  email: string | null;
+  profile: Profile;
+}> {
+  const { userId, email, profile } = await getUserAndProfile();
+  if (!userId) {
+    redirect("/auth/login");
+  }
+  if (homePathForProfile(profile) !== "/manager") {
+    redirect(homePathForProfile(profile));
+  }
+  // homePathForProfile only returns "/manager" for a manager profile.
+  return { userId, email, profile: profile as Profile };
 }
