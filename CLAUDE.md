@@ -24,9 +24,7 @@ A web portal for the **Washington State Wine Commission — Research Advisory Co
 - Reviews are **siloed** — no reviewer sees another's scores/comments.
 - Off-cycle funding comes from a **separate source, outside the annual pool**.
 - Proposal submission is **soft-locked**: the Manager can reopen a submission before the deadline.
-
-## Open decision (do not assume — ask before building the review step)
-Committee review assignment: do ALL members review EVERY proposal in a stage, or does the Manager assign subsets? This changes the review tables. Not resolved yet.
+- All committee members review and score every proposal in a stage (no per-member assignment). Total and average scores are computed across all members.
 
 ## Working rules
 - Build one vertical slice at a time and verify it end to end before starting the next. Don't build breadth ahead of need.
