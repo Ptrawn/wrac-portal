@@ -31,3 +31,6 @@ A web portal for the **Washington State Wine Commission — Research Advisory Co
 - Enforce role boundaries with Postgres Row Level Security, not just UI checks.
 - Keep auth standard; extend the starter rather than reworking it.
 - Confirm email is currently OFF for seeding initial users; it must go ON before real researcher self-signup. Design registration flows to work with confirmation ON.
+
+## Backlog (deferred, not yet built)
+- Manager editing of researcher profiles: the Manager needs to update details on a researcher's profile (name, institution, CV, etc.), not just approve/reject. The data layer currently allows only own-row updates plus the approve_researcher / reject_researcher RPCs; add a manager-update path (RLS policy or dedicated RPC, with the self-elevation guard still respected) when this is built.
