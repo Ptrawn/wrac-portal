@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
-import { statusLabel, type Cycle } from "@/lib/cycles";
+import { statusLabel, type Cycle, type ReviewQuestion } from "@/lib/cycles";
 import { EditCycleForm } from "../edit-form";
+import { QuestionSets } from "./question-sets";
 
 export default async function CycleDetailPage({
   params,
@@ -34,6 +35,25 @@ export default async function CycleDetailPage({
   }
   const cycle = data as Cycle;
 
+  const { data: questionData } = await supabase
+    .from("review_questions")
+    .select("*")
+    .eq("cycle_id", id)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  const questions = (questionData as ReviewQuestion[] | null) ?? [];
+  const preQuestions = questions.filter((q) => q.stage === "pre");
+  const fullQuestions = questions.filter((q) => q.stage === "full");
+
+  const { data: otherData } = await supabase
+    .from("cycles")
+    .select("id, name, year")
+    .neq("id", id)
+    .order("year", { ascending: false });
+  const otherCycles = (otherData as
+    | { id: string; name: string; year: number }[]
+    | null) ?? [];
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       <AppHeader email={email} />
@@ -53,6 +73,20 @@ export default async function CycleDetailPage({
           </CardHeader>
           <CardContent>
             <EditCycleForm cycle={cycle} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Review Questions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <QuestionSets
+              cycleId={id}
+              preQuestions={preQuestions}
+              fullQuestions={fullQuestions}
+              otherCycles={otherCycles}
+            />
           </CardContent>
         </Card>
       </div>

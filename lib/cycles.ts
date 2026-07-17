@@ -26,6 +26,21 @@ export type Cycle = {
   updated_at: string;
 };
 
+export type ReviewStage = "pre" | "full";
+
+export type ReviewQuestion = {
+  id: string;
+  cycle_id: string;
+  stage: ReviewStage;
+  prompt: string;
+  score_min: number;
+  score_max: number;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export const STATUS_LABELS: Record<CycleStatus, string> = {
   setup: "Setup",
   pre_proposal_open: "Pre-proposal open",
