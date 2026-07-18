@@ -112,19 +112,35 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_proposal_id uuid;
 begin
+  -- Branch on operation: NEW is unassigned on DELETE, OLD on INSERT, so never
+  -- reference the wrong one.
+  if tg_op = 'DELETE' then
+    v_proposal_id := old.proposal_id;
+  else
+    v_proposal_id := new.proposal_id;
+  end if;
+
   -- Admin (dashboard) or manager: allow everything.
   if auth.uid() is null or public.is_manager(auth.uid()) then
-    return coalesce(new, old);
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new;
   end if;
 
   -- Otherwise the parent proposal must still be editable (draft/reopened).
-  if not public.proposal_is_editable(coalesce(new.proposal_id, old.proposal_id)) then
+  if not public.proposal_is_editable(v_proposal_id) then
     raise exception 'This proposal is locked and can no longer be edited'
       using errcode = '42501';
   end if;
 
-  return coalesce(new, old);
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
 end;
 $$;
 
@@ -250,6 +266,12 @@ create policy "proposals_bucket_insert_own"
       end,
       auth.uid()
     )
+    and public.proposal_is_editable(
+      case
+        when (storage.foldername(name))[1] ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        then ((storage.foldername(name))[1])::uuid
+      end
+    )
   );
 
 create policy "proposals_bucket_select_own"
@@ -276,6 +298,12 @@ create policy "proposals_bucket_update_own"
       end,
       auth.uid()
     )
+    and public.proposal_is_editable(
+      case
+        when (storage.foldername(name))[1] ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        then ((storage.foldername(name))[1])::uuid
+      end
+    )
   )
   with check (
     bucket_id = 'proposals'
@@ -285,6 +313,12 @@ create policy "proposals_bucket_update_own"
         then ((storage.foldername(name))[1])::uuid
       end,
       auth.uid()
+    )
+    and public.proposal_is_editable(
+      case
+        when (storage.foldername(name))[1] ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        then ((storage.foldername(name))[1])::uuid
+      end
     )
   );
 
@@ -298,6 +332,12 @@ create policy "proposals_bucket_delete_own"
         then ((storage.foldername(name))[1])::uuid
       end,
       auth.uid()
+    )
+    and public.proposal_is_editable(
+      case
+        when (storage.foldername(name))[1] ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        then ((storage.foldername(name))[1])::uuid
+      end
     )
   );
 
