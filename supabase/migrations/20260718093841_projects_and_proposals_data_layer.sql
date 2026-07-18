@@ -96,9 +96,9 @@ create trigger trg_proposals_set_updated_at
   execute function public.set_updated_at();
 
 -- ----------------------------------------------------------------------------
--- 5. Guard trigger on proposals (BEFORE UPDATE)
---    Restricts WHAT a researcher may change on their own proposal. The
---    sanctioned RPCs (below) set a transaction-local flag to bypass it, since
+-- 5. Guard triggers on proposals and projects (BEFORE INSERT OR UPDATE)
+--    Restrict WHAT a researcher may set/change on their own rows. The
+--    sanctioned RPCs (below) set a transaction-local flag to bypass them, since
 --    they run with the researcher's auth.uid() and would otherwise be blocked.
 -- ----------------------------------------------------------------------------
 create or replace function public.enforce_proposal_owner_rules()
@@ -118,7 +118,23 @@ begin
     return new;
   end if;
 
-  -- Researcher acting on their own row:
+  -- Researcher INSERT: a new proposal must start as a clean draft -- the
+  -- outcome/amount/timestamp columns are RPC/manager territory.
+  if tg_op = 'INSERT' then
+    if new.state <> 'draft'
+       or new.outcome is not null
+       or new.funded_amount is not null
+       or new.submitted_at is not null
+       or new.reopened_at is not null
+       or new.rescinded_at is not null
+    then
+      raise exception 'A new proposal must start as a clean draft'
+        using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  -- Researcher UPDATE on their own row:
   -- (a) a submitted/rescinded proposal is locked entirely.
   if old.state not in ('draft', 'reopened') then
     raise exception 'This proposal is locked and can no longer be edited'
@@ -147,9 +163,63 @@ $$;
 
 drop trigger if exists trg_proposals_owner_rules on public.proposals;
 create trigger trg_proposals_owner_rules
-  before update on public.proposals
+  before insert or update on public.proposals
   for each row
   execute function public.enforce_proposal_owner_rules();
+
+-- Projects guard: block researcher-set/changed protected fields. end_project
+-- bypasses via the app.project_rpc txn-local flag.
+create or replace function public.enforce_project_owner_rules()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  -- Sanctioned RPC path: this txn-local flag is set only by end_project.
+  if current_setting('app.project_rpc', true) = 'on' then
+    return new;
+  end if;
+
+  -- Admin (dashboard, auth.uid() null) or manager: allow everything.
+  if auth.uid() is null or public.is_manager(auth.uid()) then
+    return new;
+  end if;
+
+  -- Researcher INSERT: a new project must start proposed, not ended, no final
+  -- report flagged.
+  if tg_op = 'INSERT' then
+    if new.status <> 'proposed'
+       or new.final_report_required <> false
+       or new.ended_at is not null
+    then
+      raise exception 'A new project must start as proposed'
+        using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  -- Researcher UPDATE: these fields are set only via end_project or by a
+  -- manager. Title and planned_years stay owner-editable.
+  if new.status                is distinct from old.status
+     or new.ended_at              is distinct from old.ended_at
+     or new.ended_reason          is distinct from old.ended_reason
+     or new.final_report_required is distinct from old.final_report_required
+     or new.researcher_id         is distinct from old.researcher_id
+  then
+    raise exception 'You are not allowed to change that field on a project'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_projects_owner_rules on public.projects;
+create trigger trg_projects_owner_rules
+  before insert or update on public.projects
+  for each row
+  execute function public.enforce_project_owner_rules();
 
 -- ----------------------------------------------------------------------------
 -- 6. RPCs
@@ -279,12 +349,14 @@ begin
     raise exception 'You can only end your own project' using errcode = '42501';
   end if;
 
+  perform set_config('app.project_rpc', 'on', true);
   update public.projects
   set status = 'ended',
       ended_at = now(),
       ended_reason = p_reason,
       final_report_required = true
   where id = p_project_id;
+  perform set_config('app.project_rpc', 'off', true);
 end;
 $$;
 
