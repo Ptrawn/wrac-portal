@@ -11,9 +11,15 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
-import { statusLabel, type Cycle, type ReviewQuestion } from "@/lib/cycles";
+import {
+  statusLabel,
+  type Cycle,
+  type DocumentRequirement,
+  type ReviewQuestion,
+} from "@/lib/cycles";
 import { EditCycleForm } from "../edit-form";
 import { QuestionSets } from "./question-sets";
+import { DocumentRequirements } from "./document-requirements";
 
 export default async function CycleDetailPage({
   params,
@@ -44,6 +50,14 @@ export default async function CycleDetailPage({
   const questions = (questionData as ReviewQuestion[] | null) ?? [];
   const preQuestions = questions.filter((q) => q.stage === "pre");
   const fullQuestions = questions.filter((q) => q.stage === "full");
+
+  const { data: requirementData } = await supabase
+    .from("document_requirements")
+    .select("*")
+    .eq("cycle_id", id)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  const requirements = (requirementData as DocumentRequirement[] | null) ?? [];
 
   const { data: otherData } = await supabase
     .from("cycles")
@@ -85,6 +99,19 @@ export default async function CycleDetailPage({
               cycleId={id}
               preQuestions={preQuestions}
               fullQuestions={fullQuestions}
+              otherCycles={otherCycles}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Document Requirements</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DocumentRequirements
+              cycleId={id}
+              requirements={requirements}
               otherCycles={otherCycles}
             />
           </CardContent>

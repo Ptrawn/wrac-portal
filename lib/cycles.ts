@@ -41,6 +41,22 @@ export type ReviewQuestion = {
   updated_at: string;
 };
 
+export type DocumentStage = "pre" | "full" | "status_report" | "final_report";
+
+export type DocumentRequirement = {
+  id: string;
+  cycle_id: string;
+  stage: DocumentStage;
+  label: string;
+  description: string | null;
+  is_required: boolean;
+  accepted_file_types: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export const STATUS_LABELS: Record<CycleStatus, string> = {
   setup: "Setup",
   pre_proposal_open: "Pre-proposal open",
