@@ -151,16 +151,38 @@ export async function copyQuestionsFromCycle(
     .order("sort_order", { ascending: true });
   if (error) return { error: friendlyError(error.message) };
 
-  const rows = (data ?? []).map((q) => ({
-    cycle_id: targetCycleId,
-    stage: q.stage,
-    prompt: q.prompt,
-    score_min: q.score_min,
-    score_max: q.score_max,
-    sort_order: q.sort_order,
-    is_active: true,
-  }));
-  if (rows.length === 0) return { copied: 0 };
+  const source = data ?? [];
+  if (source.length === 0) return { copied: 0 };
+
+  // Append: start each stage's copied questions after the current max
+  // sort_order for that stage in the destination, so nothing ties.
+  const { data: existing, error: existingErr } = await supabase
+    .from("review_questions")
+    .select("stage, sort_order")
+    .eq("cycle_id", targetCycleId)
+    .eq("is_active", true);
+  if (existingErr) return { error: friendlyError(existingErr.message) };
+
+  const nextByStage = new Map<string, number>();
+  for (const q of existing ?? []) {
+    const current = nextByStage.get(q.stage) ?? -1;
+    if (q.sort_order > current) nextByStage.set(q.stage, q.sort_order);
+  }
+
+  // source is already ordered by sort_order asc, preserving relative order.
+  const rows = source.map((q) => {
+    const next = (nextByStage.get(q.stage) ?? -1) + 1;
+    nextByStage.set(q.stage, next);
+    return {
+      cycle_id: targetCycleId,
+      stage: q.stage,
+      prompt: q.prompt,
+      score_min: q.score_min,
+      score_max: q.score_max,
+      sort_order: next,
+      is_active: true,
+    };
+  });
 
   const { error: insErr } = await supabase
     .from("review_questions")
