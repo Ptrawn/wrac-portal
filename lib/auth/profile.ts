@@ -81,3 +81,24 @@ export async function requireManager(): Promise<{
   // homePathForProfile only returns "/manager" for a manager profile.
   return { userId, email, profile: profile as Profile };
 }
+
+/**
+ * Guard for approved-researcher routes (/dashboard and below). Redirects
+ * unauthenticated users to login and bounces anyone who isn't an approved
+ * researcher (managers, pending/rejected) to their own home.
+ */
+export async function requireApprovedResearcher(): Promise<{
+  userId: string;
+  email: string | null;
+  profile: Profile;
+}> {
+  const { userId, email, profile } = await getUserAndProfile();
+  if (!userId) {
+    redirect("/auth/login");
+  }
+  if (homePathForProfile(profile) !== "/dashboard") {
+    redirect(homePathForProfile(profile));
+  }
+  // homePathForProfile only returns "/dashboard" for an approved researcher.
+  return { userId, email, profile: profile as Profile };
+}

@@ -1,6 +1,8 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
 
 import { AppHeader } from "@/components/app-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,35 +10,156 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getUserAndProfile, homePathForProfile } from "@/lib/auth/profile";
+import { createClient } from "@/lib/supabase/server";
+import { requireApprovedResearcher } from "@/lib/auth/profile";
+import { formatBudget, formatDate } from "@/lib/cycles";
+import {
+  proposalStateLabel,
+  proposalTypeLabel,
+  type Proposal,
+} from "@/lib/proposals";
+
+type OpenCycle = {
+  id: string;
+  name: string;
+  year: number;
+  pre_proposal_closes_at: string | null;
+};
+
+type ProposalWithCycle = Proposal & {
+  cycle: { name: string; year: number } | null;
+};
+
+function stateBadgeVariant(
+  state: string,
+): "default" | "secondary" | "destructive" | "outline" {
+  switch (state) {
+    case "submitted":
+      return "default";
+    case "rescinded":
+      return "destructive";
+    case "reopened":
+      return "outline";
+    default:
+      return "secondary";
+  }
+}
 
 export default async function DashboardPage() {
-  const { userId, email, profile } = await getUserAndProfile();
+  const { email, profile } = await requireApprovedResearcher();
 
-  if (!userId) {
-    redirect("/auth/login");
-  }
+  const supabase = await createClient();
 
-  const home = homePathForProfile(profile);
-  if (home !== "/dashboard") {
-    redirect(home);
-  }
+  const { data: openData } = await supabase
+    .from("cycles")
+    .select("id, name, year, pre_proposal_closes_at")
+    .eq("status", "pre_proposal_open")
+    .order("year", { ascending: false });
+  const openCycles = (openData as OpenCycle[] | null) ?? [];
+
+  const { data: proposalData } = await supabase
+    .from("proposals")
+    .select("*, cycle:cycles(name, year)")
+    .order("created_at", { ascending: false });
+  const proposals = (proposalData as ProposalWithCycle[] | null) ?? [];
 
   return (
     <main className="min-h-screen flex flex-col items-center">
       <AppHeader email={email} />
-      <div className="w-full max-w-2xl p-5 flex flex-col gap-6 mt-8">
+      <div className="w-full max-w-3xl p-5 flex flex-col gap-6 mt-8">
+        <div>
+          <h1 className="text-2xl font-bold">
+            Welcome{profile.full_name ? `, ${profile.full_name}` : ""}
+          </h1>
+          <p className="text-sm text-muted-foreground">{profile.institution}</p>
+        </div>
+
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">
-              Welcome{profile?.full_name ? `, ${profile.full_name}` : ""}
-            </CardTitle>
-            <CardDescription>You&apos;re approved.</CardDescription>
+            <CardTitle className="text-xl">Open for submission</CardTitle>
+            <CardDescription>
+              Cycles currently accepting pre-proposals.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Proposal submission is coming soon.
-            </p>
+            {openCycles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No cycles are open for submission right now.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {openCycles.map((cycle) => (
+                  <li
+                    key={cycle.id}
+                    className="border rounded-md p-3 flex items-center justify-between gap-3"
+                  >
+                    <div className="text-sm">
+                      <div className="font-medium">
+                        {cycle.name}{" "}
+                        <span className="text-muted-foreground font-normal">
+                          ({cycle.year})
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        Pre-proposal deadline:{" "}
+                        {formatDate(cycle.pre_proposal_closes_at)}
+                      </div>
+                    </div>
+                    <Button asChild size="sm">
+                      <Link href={`/dashboard/proposals/new?cycle=${cycle.id}`}>
+                        Start a pre-proposal
+                      </Link>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">My proposals</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {proposals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                You haven&apos;t started any proposals yet.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {proposals.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/dashboard/proposals/${p.id}`}>
+                      <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-sm">{p.title}</span>
+                          <Badge variant={stateBadgeVariant(p.state)}>
+                            {proposalStateLabel(p.state)}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                          <span>
+                            {p.cycle
+                              ? `${p.cycle.name} (${p.cycle.year})`
+                              : "—"}
+                          </span>
+                          <span>{proposalTypeLabel(p.type)}</span>
+                          {p.requested_amount != null && (
+                            <span>Requested {formatBudget(p.requested_amount)}</span>
+                          )}
+                          {p.submitted_at && (
+                            <span>
+                              Submitted {formatDate(p.submitted_at.slice(0, 10))}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>
