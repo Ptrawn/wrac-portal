@@ -18,6 +18,7 @@ import {
   type ReviewQuestion,
 } from "@/lib/cycles";
 import { EditCycleForm } from "../edit-form";
+import { CycleStatusControl } from "./cycle-status";
 import { QuestionSets } from "./question-sets";
 import { DocumentRequirements } from "./document-requirements";
 
@@ -78,6 +79,16 @@ export default async function CycleDetailPage({
         >
           ← Cycles
         </Link>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Cycle Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CycleStatusControl cycleId={id} status={cycle.status} />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-3">

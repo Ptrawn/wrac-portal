@@ -69,6 +69,19 @@ export const STATUS_LABELS: Record<CycleStatus, string> = {
   closed: "Closed",
 };
 
+// The lifecycle order the Manager advances a cycle through.
+export const CYCLE_STATUS_SEQUENCE: CycleStatus[] = [
+  "setup",
+  "pre_proposal_open",
+  "pre_review",
+  "advance_decision",
+  "full_proposal_open",
+  "full_review",
+  "deliberation",
+  "funding_decisions",
+  "closed",
+];
+
 export function statusLabel(status: string): string {
   return STATUS_LABELS[status as CycleStatus] ?? status;
 }
