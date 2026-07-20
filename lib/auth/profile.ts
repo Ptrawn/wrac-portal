@@ -12,6 +12,7 @@ export type Profile = {
   full_name: string | null;
   institution: string | null;
   cv_path: string | null;
+  must_change_password: boolean;
 };
 
 /**
@@ -35,7 +36,9 @@ export async function getUserAndProfile(): Promise<{
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, role, status, full_name, institution, cv_path")
+    .select(
+      "id, role, status, full_name, institution, cv_path, must_change_password",
+    )
     .eq("id", userId)
     .single();
 
@@ -47,14 +50,19 @@ export async function getUserAndProfile(): Promise<{
  * their profile. Every protected page redirects here so routing stays
  * consistent and server-enforced.
  *
+ * - must_change_password          -> /auth/change-password (gate, overrides all)
  * - manager                       -> /manager
+ * - committee                     -> /committee
  * - approved researcher           -> /dashboard
  * - pending / rejected researcher -> /pending
  * - missing profile row           -> /pending (treated as pending)
  */
 export function homePathForProfile(profile: Profile | null): string {
   if (!profile) return "/pending";
+  // Forced password change takes precedence over every role home.
+  if (profile.must_change_password) return "/auth/change-password";
   if (profile.role === "manager") return "/manager";
+  if (profile.role === "committee") return "/committee";
   if (profile.role === "researcher" && profile.status === "approved") {
     return "/dashboard";
   }
@@ -100,5 +108,24 @@ export async function requireApprovedResearcher(): Promise<{
     redirect(homePathForProfile(profile));
   }
   // homePathForProfile only returns "/dashboard" for an approved researcher.
+  return { userId, email, profile: profile as Profile };
+}
+
+/**
+ * Guard for committee routes (/committee). Redirects unauthenticated users to
+ * login and bounces anyone who isn't a committee member to their own home.
+ */
+export async function requireCommittee(): Promise<{
+  userId: string;
+  email: string | null;
+  profile: Profile;
+}> {
+  const { userId, email, profile } = await getUserAndProfile();
+  if (!userId) {
+    redirect("/auth/login");
+  }
+  if (homePathForProfile(profile) !== "/committee") {
+    redirect(homePathForProfile(profile));
+  }
   return { userId, email, profile: profile as Profile };
 }

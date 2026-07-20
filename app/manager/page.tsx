@@ -26,9 +26,14 @@ export default async function ManagerPage() {
       <div className="w-full max-w-2xl p-5 flex flex-col gap-6 mt-8">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">Manager area</h1>
-          <Button asChild variant="outline">
-            <Link href="/manager/cycles">Cycles</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/manager/cycles">Cycles</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/manager/committee">Committee</Link>
+            </Button>
+          </div>
         </div>
         <Card>
           <CardHeader>
