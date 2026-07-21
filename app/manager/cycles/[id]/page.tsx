@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AppHeader } from "@/components/app-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -73,12 +74,17 @@ export default async function CycleDetailPage({
     <main className="min-h-screen flex flex-col items-center">
       <AppHeader email={email} />
       <div className="w-full max-w-2xl p-5 flex flex-col gap-6 mt-8">
-        <Link
-          href="/manager/cycles"
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Cycles
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/manager/cycles"
+            className="text-sm text-muted-foreground underline underline-offset-4"
+          >
+            ← Cycles
+          </Link>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/manager/cycles/${id}/proposals`}>Proposals</Link>
+          </Button>
+        </div>
 
         <Card>
           <CardHeader>

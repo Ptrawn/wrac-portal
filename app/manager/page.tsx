@@ -31,6 +31,9 @@ export default async function ManagerPage() {
               <Link href="/manager/cycles">Cycles</Link>
             </Button>
             <Button asChild variant="outline">
+              <Link href="/manager/cycles">Proposals</Link>
+            </Button>
+            <Button asChild variant="outline">
               <Link href="/manager/committee">Committee</Link>
             </Button>
           </div>
