@@ -35,3 +35,5 @@ A web portal for the **Washington State Wine Commission — Research Advisory Co
 
 ## Backlog (deferred, not yet built)
 - Manager editing of researcher profiles: the Manager needs to update details on a researcher's profile (name, institution, CV, etc.), not just approve/reject. The data layer currently allows only own-row updates plus the approve_researcher / reject_researcher RPCs; add a manager-update path (RLS policy or dedicated RPC, with the self-elevation guard still respected) when this is built.
+- Committee review workspace layout: refine so a reviewer can view the proposal documents alongside the scoring questions (side-by-side / split view) rather than scrolling between context and form. Current layout is functional but not ideal for real reviewing.
+- Manager UI data surfacing: expect refinement passes on what data appears where across the manager screens once the full workflow is exercised end to end.
