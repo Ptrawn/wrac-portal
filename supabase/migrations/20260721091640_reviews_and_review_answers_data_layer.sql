@@ -63,8 +63,12 @@ create trigger trg_review_answers_set_updated_at
   execute function public.set_updated_at();
 
 -- ----------------------------------------------------------------------------
--- 4. Score-range validation on review_answers (a CHECK can't span tables).
---    SECURITY DEFINER so the question lookup isn't limited by RLS.
+-- 4. review_answers validity (a CHECK can't span tables). Validates:
+--    (a) the answered question belongs to the same cycle as the review's
+--        proposal AND its stage matches the review's stage -- so a reviewer
+--        can't attach answers for foreign questions that would inflate totals;
+--    (b) the score (when present) is within that question's min..max.
+--    SECURITY DEFINER so the lookups aren't limited by RLS.
 -- ----------------------------------------------------------------------------
 create or replace function public.enforce_review_answer_score_range()
 returns trigger
@@ -73,23 +77,48 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_min int;
-  v_max int;
+  v_min            int;
+  v_max            int;
+  v_q_cycle        uuid;
+  v_q_stage        text;
+  v_review_stage   text;
+  v_proposal_cycle uuid;
 begin
-  if new.score is not null then
-    select score_min, score_max into v_min, v_max
-    from public.review_questions
-    where id = new.question_id;
+  select score_min, score_max, cycle_id, stage
+    into v_min, v_max, v_q_cycle, v_q_stage
+  from public.review_questions
+  where id = new.question_id;
+  if v_min is null then
+    raise exception 'Question not found for this answer'
+      using errcode = '23503';
+  end if;
 
-    if v_min is null then
-      raise exception 'Question not found for this answer'
-        using errcode = '23503';
-    end if;
+  select r.stage, p.cycle_id
+    into v_review_stage, v_proposal_cycle
+  from public.reviews r
+  join public.proposals p on p.id = r.proposal_id
+  where r.id = new.review_id;
+  if v_review_stage is null then
+    raise exception 'Review not found for this answer'
+      using errcode = '23503';
+  end if;
+
+  -- (a) the question must belong to the review's proposal's cycle and stage.
+  if v_q_cycle is distinct from v_proposal_cycle
+     or v_q_stage is distinct from v_review_stage then
+    raise exception
+      'This question does not belong to the review''s cycle and stage'
+      using errcode = '42501';
+  end if;
+
+  -- (b) score range.
+  if new.score is not null then
     if new.score < v_min or new.score > v_max then
       raise exception 'Score must be between % and % for this question', v_min, v_max
         using errcode = '23514';
     end if;
   end if;
+
   return new;
 end;
 $$;
@@ -183,14 +212,52 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_type        text;
+  v_expected    text;
+  v_check_stage boolean := false;
 begin
-  -- Sanctioned RPC path.
+  -- Admin (dashboard, auth.uid() null): fully unrestricted so data can be fixed
+  -- by hand, including a deliberately mismatched stage.
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  -- Stage-vs-proposal consistency applies to managers AND reviewers (a
+  -- mismatched stage is invalid data regardless of writer). The RPCs never
+  -- change stage, so skip on their bypass path; on UPDATE only re-check if the
+  -- stage actually moved. Branch on TG_OP so OLD is never touched on INSERT.
+  if current_setting('app.review_rpc', true) <> 'on' then
+    if tg_op = 'INSERT' then
+      v_check_stage := true;
+    elsif new.stage is distinct from old.stage then
+      v_check_stage := true;
+    end if;
+  end if;
+
+  if v_check_stage then
+    select p.type into v_type
+    from public.proposals p
+    where p.id = new.proposal_id;
+    -- If the proposal is missing the FK will reject it; only enforce when found.
+    if v_type is not null then
+      v_expected := case when v_type = 'pre' then 'pre' else 'full' end;
+      if new.stage <> v_expected then
+        raise exception
+          'Review stage (%) does not match the proposal type % (expected stage %)',
+          new.stage, v_type, v_expected
+          using errcode = '42501';
+      end if;
+    end if;
+  end if;
+
+  -- Sanctioned RPC path: bypass the ownership rules below.
   if current_setting('app.review_rpc', true) = 'on' then
     return new;
   end if;
 
-  -- Admin (dashboard) or manager: allow everything.
-  if auth.uid() is null or public.is_manager(auth.uid()) then
+  -- Manager: bypass the ownership rules (stage already validated above).
+  if public.is_manager(auth.uid()) then
     return new;
   end if;
 
