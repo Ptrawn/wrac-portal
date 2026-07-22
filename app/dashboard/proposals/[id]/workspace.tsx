@@ -7,18 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
-import type { DocumentRequirement } from "@/lib/cycles";
+import { formatBudget, type DocumentRequirement } from "@/lib/cycles";
 import type { ProposalDocument } from "@/lib/proposals";
 import {
   getProposalFileUrl,
   rescindProposal,
-  submitPreProposal,
+  saveBudgetPlan,
+  submitProposal,
   updateProposal,
 } from "../actions";
+
+type BudgetYearInput = { year_number: number; planned_amount: string };
 
 type Props = {
   proposalId: string;
   projectId: string;
+  type: string;
   state: string;
   editable: boolean;
   hasCv: boolean;
@@ -27,19 +31,25 @@ type Props = {
   initialPlannedYears: string;
   requirements: DocumentRequirement[];
   documents: ProposalDocument[];
+  budgetYears: BudgetYearInput[];
 };
 
 export function ProposalWorkspace(props: Props) {
   const {
     proposalId,
     projectId,
+    type,
     state,
     editable,
     hasCv,
     requirements,
     documents,
+    initialAmount,
+    initialPlannedYears,
+    budgetYears,
   } = props;
 
+  const isFull = type === "full";
   const requiredReqs = requirements.filter((r) => r.is_required);
   const uploadedReqIds = new Set(documents.map((d) => d.requirement_id));
   const requiredUploaded = requiredReqs.filter((r) =>
@@ -57,6 +67,17 @@ export function ProposalWorkspace(props: Props) {
       )}
 
       <DetailsSection {...props} />
+
+      {isFull && (
+        <BudgetPlanSection
+          proposalId={proposalId}
+          projectId={projectId}
+          editable={editable}
+          initialPlannedYears={initialPlannedYears}
+          initialAmount={initialAmount}
+          initialBudgetYears={budgetYears}
+        />
+      )}
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -101,12 +122,14 @@ export function ProposalWorkspace(props: Props) {
 function DetailsSection({
   proposalId,
   projectId,
+  type,
   editable,
   initialTitle,
   initialAmount,
   initialPlannedYears,
 }: Props) {
   const router = useRouter();
+  const isFull = type === "full";
   const [title, setTitle] = useState(initialTitle);
   const [amount, setAmount] = useState(initialAmount);
   const [plannedYears, setPlannedYears] = useState(initialPlannedYears);
@@ -132,10 +155,16 @@ function DetailsSection({
     setError(null);
     setSaved(false);
     startTransition(async () => {
+      // Full proposals manage amount + planned years through the plan below,
+      // so this only saves the title for them.
       const res = await updateProposal(proposalId, projectId, {
         title: title.trim(),
-        requestedAmount: amount.trim() === "" ? null : amount.trim(),
-        plannedYears: Number(plannedYears),
+        requestedAmount: isFull
+          ? undefined
+          : amount.trim() === ""
+            ? null
+            : amount.trim(),
+        plannedYears: isFull ? undefined : Number(plannedYears),
       });
       if (res?.error) setError(res.error);
       else {
@@ -156,36 +185,254 @@ function DetailsSection({
           onChange={(e) => setTitle(e.target.value)}
         />
       </div>
-      <div className="grid gap-2">
-        <Label htmlFor="amount">Requested amount (this year)</Label>
-        <Input
-          id="amount"
-          type="number"
-          min="0"
-          step="0.01"
-          className="w-40"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="planned_years">Planned years (1–10)</Label>
-        <Input
-          id="planned_years"
-          type="number"
-          min="1"
-          max="10"
-          className="w-28"
-          value={plannedYears}
-          onChange={(e) => setPlannedYears(e.target.value)}
-        />
-      </div>
+      {!isFull && (
+        <>
+          <div className="grid gap-2">
+            <Label htmlFor="amount">Requested amount (this year)</Label>
+            <Input
+              id="amount"
+              type="number"
+              min="0"
+              step="0.01"
+              className="w-40"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="planned_years">Planned years (1–10)</Label>
+            <Input
+              id="planned_years"
+              type="number"
+              min="1"
+              max="10"
+              className="w-28"
+              value={plannedYears}
+              onChange={(e) => setPlannedYears(e.target.value)}
+            />
+          </div>
+        </>
+      )}
       {error && <p className="text-sm text-red-500">{error}</p>}
       {saved && !error && <p className="text-sm text-green-600">Saved.</p>}
       <Button type="submit" size="sm" disabled={isPending} className="w-fit">
         {isPending ? "Saving…" : "Save details"}
       </Button>
     </form>
+  );
+}
+
+function BudgetPlanSection({
+  proposalId,
+  projectId,
+  editable,
+  initialPlannedYears,
+  initialAmount,
+  initialBudgetYears,
+}: {
+  proposalId: string;
+  projectId: string;
+  editable: boolean;
+  initialPlannedYears: string;
+  initialAmount: string;
+  initialBudgetYears: BudgetYearInput[];
+}) {
+  const router = useRouter();
+
+  const initialAmounts = () => {
+    const m: Record<number, string> = {};
+    for (const b of initialBudgetYears) m[b.year_number] = b.planned_amount;
+    // Year 1 mirrors the proposal's requested amount if no plan row yet.
+    if (m[1] === undefined && initialAmount !== "") m[1] = initialAmount;
+    return m;
+  };
+
+  const [years, setYears] = useState<number>(
+    Math.min(10, Math.max(1, Number(initialPlannedYears) || 1)),
+  );
+  const [amounts, setAmounts] = useState<Record<number, string>>(initialAmounts);
+  const [pendingReduce, setPendingReduce] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const amountOf = (y: number): number => {
+    const raw = amounts[y] ?? "";
+    if (raw.trim() === "") return 0;
+    const n = Number(raw);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const total = Array.from({ length: years }, (_, i) => amountOf(i + 1)).reduce(
+    (s, v) => s + v,
+    0,
+  );
+
+  const applyYears = (n: number) => {
+    setSaved(false);
+    setYears(n);
+  };
+
+  const changeYears = (raw: string) => {
+    const n = Math.min(10, Math.max(1, Number(raw) || 1));
+    if (n < years) {
+      // Warn if any of the years being dropped has an entered amount.
+      const dropped = [];
+      for (let y = n + 1; y <= years; y++) {
+        if ((amounts[y] ?? "").trim() !== "") dropped.push(y);
+      }
+      if (dropped.length > 0) {
+        setPendingReduce(n);
+        return;
+      }
+    }
+    applyYears(n);
+  };
+
+  const confirmReduce = () => {
+    if (pendingReduce == null) return;
+    const n = pendingReduce;
+    setAmounts((a) => {
+      const next = { ...a };
+      for (let y = n + 1; y <= years; y++) delete next[y];
+      return next;
+    });
+    applyYears(n);
+    setPendingReduce(null);
+  };
+
+  const save = () => {
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const payload = Array.from({ length: years }, (_, i) => ({
+        year_number: i + 1,
+        planned_amount: amountOf(i + 1),
+      }));
+      const res = await saveBudgetPlan(proposalId, projectId, years, payload);
+      if (res?.error) setError(res.error);
+      else {
+        setSaved(true);
+        router.refresh();
+      }
+    });
+  };
+
+  if (!editable) {
+    return (
+      <div className="flex flex-col gap-2">
+        <h3 className="font-semibold">Multi-year budget plan</h3>
+        <ul className="flex flex-col gap-0.5 text-sm">
+          {initialBudgetYears.length === 0 ? (
+            <li className="text-muted-foreground">No plan entered.</li>
+          ) : (
+            initialBudgetYears.map((b) => (
+              <li
+                key={b.year_number}
+                className="grid grid-cols-[8rem_1fr] text-muted-foreground"
+              >
+                <span>
+                  Year {b.year_number}
+                  {b.year_number === 1 ? " (this cycle)" : ""}
+                </span>
+                <span>
+                  {b.planned_amount === "" ? "—" : formatBudget(b.planned_amount)}
+                </span>
+              </li>
+            ))
+          )}
+        </ul>
+        {initialBudgetYears.length > 0 && (
+          <p className="text-sm">
+            Plan total:{" "}
+            {formatBudget(
+              initialBudgetYears
+                .reduce((s, b) => s + Number(b.planned_amount || 0), 0)
+                .toString(),
+            )}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <h3 className="font-semibold">Multi-year budget plan</h3>
+        <p className="text-xs text-muted-foreground">
+          Year 1 is this cycle&apos;s requested amount; it&apos;s the authoritative
+          ask and is saved as the proposal&apos;s requested amount.
+        </p>
+      </div>
+
+      <div className="grid gap-1 w-40">
+        <Label htmlFor="plan_years" className="text-xs">
+          Planned years (1–10)
+        </Label>
+        <Input
+          id="plan_years"
+          type="number"
+          min="1"
+          max="10"
+          className="w-28"
+          value={String(years)}
+          onChange={(e) => changeYears(e.target.value)}
+        />
+      </div>
+
+      {pendingReduce != null && (
+        <div className="text-sm flex flex-col gap-2 border rounded-md p-3">
+          <p>
+            Reducing to {pendingReduce} year(s) will discard the amounts you
+            entered for later years. Continue?
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" onClick={confirmReduce}>
+              Discard and reduce
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPendingReduce(null)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ul className="flex flex-col gap-2">
+        {Array.from({ length: years }, (_, i) => i + 1).map((y) => (
+          <li key={y} className="grid grid-cols-[8rem_1fr] items-center gap-3">
+            <Label htmlFor={`year-${y}`} className="text-sm">
+              Year {y}
+              {y === 1 ? " (this cycle)" : ""}
+            </Label>
+            <Input
+              id={`year-${y}`}
+              type="number"
+              min="0"
+              step="0.01"
+              className="w-40"
+              value={amounts[y] ?? ""}
+              onChange={(e) => {
+                setSaved(false);
+                setAmounts((a) => ({ ...a, [y]: e.target.value }));
+              }}
+            />
+          </li>
+        ))}
+      </ul>
+
+      <p className="text-sm">Plan total: {formatBudget(total.toString())}</p>
+
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      {saved && !error && <p className="text-sm text-green-600">Plan saved.</p>}
+      <Button size="sm" disabled={isPending} onClick={save} className="w-fit">
+        {isPending ? "Saving…" : "Save plan"}
+      </Button>
+    </div>
   );
 }
 
@@ -384,7 +631,7 @@ function SubmitSection({
   const submit = () => {
     setError(null);
     startTransition(async () => {
-      const res = await submitPreProposal(proposalId);
+      const res = await submitProposal(proposalId);
       if (res?.error) setError(res.error);
       else router.refresh();
     });

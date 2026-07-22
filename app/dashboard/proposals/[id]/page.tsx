@@ -20,7 +20,10 @@ import {
   type Proposal,
   type ProposalDocument,
 } from "@/lib/proposals";
+import { stageForProposalType } from "@/lib/reviews";
 import { ProposalWorkspace } from "./workspace";
+
+type BudgetYear = { year_number: number; planned_amount: number | string };
 
 export default async function ProposalDetailPage({
   params,
@@ -74,17 +77,25 @@ export default async function ProposalDetailPage({
     .single();
   const project = projectData as Project | null;
 
+  const stage = stageForProposalType(proposal.type);
+
   const { data: cycleData } = await supabase
     .from("cycles")
-    .select("id, name, year, status, pre_proposal_closes_at")
+    .select(
+      "id, name, year, status, pre_proposal_closes_at, full_proposal_due_at",
+    )
     .eq("id", proposal.cycle_id)
     .single();
+  const deadline =
+    stage === "pre"
+      ? (cycleData?.pre_proposal_closes_at ?? null)
+      : (cycleData?.full_proposal_due_at ?? null);
 
   const { data: requirementData } = await supabase
     .from("document_requirements")
     .select("*")
     .eq("cycle_id", proposal.cycle_id)
-    .eq("stage", "pre")
+    .eq("stage", stage)
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
   const requirements = (requirementData as DocumentRequirement[] | null) ?? [];
@@ -94,6 +105,23 @@ export default async function ProposalDetailPage({
     .select("*")
     .eq("proposal_id", id);
   const documents = (documentData as ProposalDocument[] | null) ?? [];
+
+  const { data: budgetData } = await supabase
+    .from("proposal_budget_years")
+    .select("year_number, planned_amount")
+    .eq("proposal_id", id)
+    .order("year_number", { ascending: true });
+  const budgetYears = (budgetData as BudgetYear[] | null) ?? [];
+
+  let parent: { id: string; title: string } | null = null;
+  if (proposal.parent_proposal_id) {
+    const { data: parentData } = await supabase
+      .from("proposals")
+      .select("id, title")
+      .eq("id", proposal.parent_proposal_id)
+      .maybeSingle();
+    parent = (parentData as { id: string; title: string } | null) ?? null;
+  }
 
   const { data: profileData } = await supabase
     .from("profiles")
@@ -128,13 +156,24 @@ export default async function ProposalDetailPage({
                 ? `${cycleData.name} (${cycleData.year})`
                 : "Cycle unavailable"}{" "}
               · {proposalTypeLabel(proposal.type)} · Deadline{" "}
-              {formatDate(cycleData?.pre_proposal_closes_at ?? null)}
+              {formatDate(deadline)}
             </p>
+            {parent && (
+              <p className="text-sm mt-1">
+                <Link
+                  href={`/dashboard/proposals/${parent.id}`}
+                  className="underline underline-offset-4"
+                >
+                  View your original pre-proposal ({parent.title})
+                </Link>
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             <ProposalWorkspace
               proposalId={proposal.id}
               projectId={proposal.project_id}
+              type={proposal.type}
               state={proposal.state}
               editable={editable}
               hasCv={hasCv}
@@ -147,6 +186,11 @@ export default async function ProposalDetailPage({
               initialPlannedYears={String(project?.planned_years ?? 1)}
               requirements={requirements}
               documents={documents}
+              budgetYears={budgetYears.map((b) => ({
+                year_number: b.year_number,
+                planned_amount:
+                  b.planned_amount == null ? "" : String(b.planned_amount),
+              }))}
             />
           </CardContent>
         </Card>

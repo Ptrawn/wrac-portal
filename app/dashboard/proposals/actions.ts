@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { stageForProposalType } from "@/lib/reviews";
 
 function friendly(message: string): string {
   const m = message.toLowerCase();
@@ -78,27 +79,97 @@ export async function startPreProposal(input: {
   redirect(`/dashboard/proposals/${proposal.id}`);
 }
 
-/** Edit draft/reopened content: proposal title + requested amount, project planned years. */
+/**
+ * Edit draft/reopened content. `requestedAmount` and `plannedYears` are
+ * optional: pass undefined to leave them untouched (full proposals manage both
+ * through the multi-year plan instead of here).
+ */
 export async function updateProposal(
   proposalId: string,
   projectId: string,
-  input: { title: string; requestedAmount: string | null; plannedYears: number },
+  input: {
+    title: string;
+    requestedAmount?: string | null;
+    plannedYears?: number;
+  },
 ): Promise<{ error?: string; ok?: boolean }> {
   const supabase = await createClient();
 
+  const proposalUpdate: Record<string, unknown> = { title: input.title };
+  if (input.requestedAmount !== undefined) {
+    proposalUpdate.requested_amount = input.requestedAmount;
+  }
   const { error: proposalError } = await supabase
     .from("proposals")
-    .update({ title: input.title, requested_amount: input.requestedAmount })
+    .update(proposalUpdate)
     .eq("id", proposalId);
   if (proposalError) return { error: friendly(proposalError.message) };
 
+  if (input.plannedYears !== undefined) {
+    const { error: projectError } = await supabase
+      .from("projects")
+      .update({ planned_years: input.plannedYears })
+      .eq("id", projectId);
+    if (projectError) return { error: friendly(projectError.message) };
+  }
+
+  revalidatePath(`/dashboard/proposals/${proposalId}`);
+  return { ok: true };
+}
+
+/**
+ * Save the multi-year budget plan for a full proposal. Upserts one
+ * proposal_budget_years row per year (1..plannedYears), removes rows for years
+ * beyond plannedYears, mirrors Year 1 into proposals.requested_amount (the
+ * authoritative "this cycle's ask"), and sets the project's planned_years.
+ * Budget writes are lock-guarded by the DB once the proposal is submitted --
+ * that message is surfaced.
+ */
+export async function saveBudgetPlan(
+  proposalId: string,
+  projectId: string,
+  plannedYears: number,
+  years: { year_number: number; planned_amount: number }[],
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+
+  // Budget writes first so a locked proposal fails before we touch the project.
+  const rows = years.map((y) => ({
+    proposal_id: proposalId,
+    year_number: y.year_number,
+    planned_amount: y.planned_amount,
+  }));
+  if (rows.length > 0) {
+    const { error: upsertError } = await supabase
+      .from("proposal_budget_years")
+      .upsert(rows, { onConflict: "proposal_id,year_number" });
+    if (upsertError) return { error: friendly(upsertError.message) };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("proposal_budget_years")
+    .delete()
+    .eq("proposal_id", proposalId)
+    .gt("year_number", plannedYears);
+  if (deleteError) return { error: friendly(deleteError.message) };
+
+  const year1 = years.find((y) => y.year_number === 1);
+  if (year1) {
+    const { error: reqError } = await supabase
+      .from("proposals")
+      .update({ requested_amount: year1.planned_amount })
+      .eq("id", proposalId);
+    if (reqError) return { error: friendly(reqError.message) };
+  }
+
   const { error: projectError } = await supabase
     .from("projects")
-    .update({ planned_years: input.plannedYears })
+    .update({ planned_years: plannedYears })
     .eq("id", projectId);
   if (projectError) return { error: friendly(projectError.message) };
 
   revalidatePath(`/dashboard/proposals/${proposalId}`);
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 
@@ -117,10 +188,10 @@ export async function getProposalFileUrl(
 /**
  * Snapshot the researcher's profile CV into the proposal folder (while still
  * editable, since storage writes require it), then flip state via the RPC.
- * All required pre-stage documents must be uploaded, and a profile CV must
- * exist.
+ * All required documents for the proposal's stage must be uploaded, and a
+ * profile CV must exist.
  */
-export async function submitPreProposal(
+export async function submitProposal(
   proposalId: string,
 ): Promise<{ error?: string; ok?: boolean }> {
   const supabase = await createClient();
@@ -129,7 +200,7 @@ export async function submitPreProposal(
 
   const { data: proposal } = await supabase
     .from("proposals")
-    .select("id, cycle_id, researcher_id, state")
+    .select("id, cycle_id, researcher_id, state, type")
     .eq("id", proposalId)
     .single();
   if (!proposal) return { error: "Proposal not found." };
@@ -138,12 +209,12 @@ export async function submitPreProposal(
     return { error: "This proposal can no longer be submitted." };
   }
 
-  // Re-check required documents server-side.
+  // Re-check required documents server-side, for this proposal's stage.
   const { data: reqs } = await supabase
     .from("document_requirements")
     .select("id, is_required")
     .eq("cycle_id", proposal.cycle_id)
-    .eq("stage", "pre")
+    .eq("stage", stageForProposalType(proposal.type))
     .eq("is_active", true);
   const requiredIds = (reqs ?? [])
     .filter((r) => r.is_required)
