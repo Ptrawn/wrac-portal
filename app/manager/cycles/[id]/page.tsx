@@ -81,9 +81,14 @@ export default async function CycleDetailPage({
           >
             ← Cycles
           </Link>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/manager/cycles/${id}/proposals`}>Proposals</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/manager/cycles/${id}/proposals`}>Proposals</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/manager/cycles/${id}/allocation`}>Allocation</Link>
+            </Button>
+          </div>
         </div>
 
         <Card>

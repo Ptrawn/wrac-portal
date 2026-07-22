@@ -87,12 +87,20 @@ export default async function ManagerProposalsPage({
       <AppHeader email={email} />
       <div className="w-full max-w-4xl p-5 flex flex-col gap-6 mt-8">
         <div>
-          <Link
-            href={`/manager/cycles/${cycleId}`}
-            className="text-sm text-muted-foreground underline underline-offset-4"
-          >
-            ← Cycle
-          </Link>
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              href={`/manager/cycles/${cycleId}`}
+              className="text-sm text-muted-foreground underline underline-offset-4"
+            >
+              ← Cycle
+            </Link>
+            <Link
+              href={`/manager/cycles/${cycleId}/allocation`}
+              className="text-sm underline underline-offset-4"
+            >
+              Allocation tool →
+            </Link>
+          </div>
           <div className="flex items-center justify-between gap-3 mt-1">
             <h1 className="text-2xl font-bold">
               {cycle.name} ({cycle.year}) — proposals

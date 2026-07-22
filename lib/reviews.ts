@@ -52,6 +52,17 @@ export type ProposalReviewSummary = {
   max_possible: number | string | null;
 };
 
+// Single-row result of cycle_funding_summary RPC (numerics arrive as strings).
+export type CycleFundingSummary = {
+  total_budget: number | string;
+  allocated: number | string;
+  remaining: number | string;
+  requested_total: number | string;
+  decided_count: number;
+  undecided_count: number;
+  offcycle_allocated: number | string;
+};
+
 export const OUTCOME_LABELS: Record<string, string> = {
   advanced: "Advanced",
   declined: "Declined",
