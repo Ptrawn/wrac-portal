@@ -171,12 +171,20 @@ export default async function AllocationPage({
       </div>
 
       <div className="w-full max-w-5xl p-5 flex flex-col gap-6 mt-4">
-        <Link
-          href={`/manager/cycles/${cycleId}/proposals`}
-          className="text-sm text-muted-foreground underline underline-offset-4"
-        >
-          ← Review dashboard
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href={`/manager/cycles/${cycleId}/proposals`}
+            className="text-sm text-muted-foreground underline underline-offset-4"
+          >
+            ← Review dashboard
+          </Link>
+          <Link
+            href={`/manager/cycles/${cycleId}/report`}
+            className="text-sm underline underline-offset-4"
+          >
+            Commission report →
+          </Link>
+        </div>
 
         <Card>
           <CardHeader>

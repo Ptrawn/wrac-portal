@@ -88,6 +88,9 @@ export default async function CycleDetailPage({
             <Button asChild variant="outline" size="sm">
               <Link href={`/manager/cycles/${id}/allocation`}>Allocation</Link>
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/manager/cycles/${id}/report`}>Report</Link>
+            </Button>
           </div>
         </div>
 

@@ -52,6 +52,22 @@ export type ProposalReviewSummary = {
   max_possible: number | string | null;
 };
 
+// Row shape from cycle_funding_report RPC (numerics arrive as strings). One row
+// per funded proposal; off_cycle is flagged via `type` for separate sectioning.
+export type CycleFundingReportRow = {
+  proposal_id: string;
+  project_id: string;
+  title: string;
+  type: string;
+  researcher_name: string | null;
+  researcher_institution: string | null;
+  year_number: number;
+  requested_amount: number | string | null;
+  funded_amount: number | string | null;
+  plan_total: number | string | null;
+  planned_years: number;
+};
+
 // Single-row result of cycle_funding_summary RPC (numerics arrive as strings).
 export type CycleFundingSummary = {
   total_budget: number | string;
