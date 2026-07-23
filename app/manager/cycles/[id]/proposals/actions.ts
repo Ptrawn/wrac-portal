@@ -48,6 +48,20 @@ export async function inviteFullProposal(
   return { newProposalId: data as string };
 }
 
+export async function inviteContinuation(
+  cycleId: string,
+  projectId: string,
+): Promise<{ error?: string; newProposalId?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("invite_continuation", {
+    p_project_id: projectId,
+    p_cycle_id: cycleId,
+  });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId, data as string);
+  return { newProposalId: data as string };
+}
+
 export async function reopenProposalAction(
   cycleId: string,
   proposalId: string,

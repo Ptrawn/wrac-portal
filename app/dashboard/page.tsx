@@ -42,6 +42,7 @@ type ProposalWithCycle = Proposal & {
     pre_proposal_closes_at: string | null;
     full_proposal_due_at: string | null;
   } | null;
+  project: { status: string; planned_years: number } | null;
 };
 
 function stateBadgeVariant(
@@ -74,7 +75,7 @@ export default async function DashboardPage() {
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "*, cycle:cycles(name, year, status, pre_proposal_closes_at, full_proposal_due_at)",
+      "*, cycle:cycles(name, year, status, pre_proposal_closes_at, full_proposal_due_at), project:projects(status, planned_years)",
     )
     .order("created_at", { ascending: false });
   const proposals = (proposalData as ProposalWithCycle[] | null) ?? [];
@@ -169,6 +170,9 @@ export default async function DashboardPage() {
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-medium text-sm">{p.title}</span>
                           <div className="flex items-center gap-2 shrink-0">
+                            {p.project?.status === "ended" && (
+                              <Badge variant="outline">Project ended</Badge>
+                            )}
                             {submissionClosed(p) && (
                               <Badge variant="outline" className="text-destructive border-destructive/40">
                                 Submission closed
@@ -186,6 +190,11 @@ export default async function DashboardPage() {
                               : "—"}
                           </span>
                           <span>{proposalTypeLabel(p.type)}</span>
+                          {p.type === "continuation" && p.project && (
+                            <span>
+                              Year {p.year_number} of {p.project.planned_years}
+                            </span>
+                          )}
                           {p.requested_amount != null && (
                             <span>Requested {formatBudget(p.requested_amount)}</span>
                           )}

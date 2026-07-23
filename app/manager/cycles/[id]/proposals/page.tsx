@@ -16,9 +16,11 @@ import { proposalStateLabel, proposalTypeLabel } from "@/lib/proposals";
 import {
   formatAverage,
   outcomeLabel,
+  type ContinuationCandidate,
   type ManagerProposalRow,
   type ProposalReviewSummary,
 } from "@/lib/reviews";
+import { ContinuationCandidates } from "./continuation-candidates";
 
 type Row = ManagerProposalRow & {
   summary: ProposalReviewSummary | null;
@@ -63,6 +65,12 @@ export default async function ManagerProposalsPage({
   const { data: summaryData } = await supabase.rpc("proposal_review_summary", {
     p_cycle_id: cycleId,
   });
+  const { data: candidateData } = await supabase.rpc(
+    "list_continuation_candidates",
+    { p_cycle_id: cycleId },
+  );
+  const candidates =
+    (candidateData as ContinuationCandidate[] | null) ?? [];
 
   const summaries = new Map<string, ProposalReviewSummary>(
     ((summaryData as ProposalReviewSummary[] | null) ?? []).map((s) => [
@@ -122,6 +130,8 @@ export default async function ManagerProposalsPage({
             {formatBudget(cycle.total_budget)}
           </p>
         </div>
+
+        <ContinuationCandidates cycleId={cycleId} candidates={candidates} />
 
         {rowError ? (
           <p className="text-sm text-red-500">

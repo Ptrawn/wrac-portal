@@ -52,6 +52,31 @@ export type ProposalReviewSummary = {
   max_possible: number | string | null;
 };
 
+// Row shape from list_continuation_candidates RPC (numerics arrive as strings).
+export type ContinuationCandidate = {
+  project_id: string;
+  project_title: string;
+  planned_years: number;
+  researcher_id: string;
+  researcher_name: string | null;
+  researcher_institution: string | null;
+  last_funded_proposal_id: string;
+  last_funded_year: number;
+  last_funded_amount: number | string | null;
+  last_funded_cycle_name: string;
+  next_year_number: number;
+  projected_amount: number | string | null;
+};
+
+// Row shape from proposal_plan_context RPC — the ORIGINAL multi-year plan a
+// continuation is compared against (numerics arrive as strings).
+export type PlanContextRow = {
+  year_number: number;
+  planned_amount: number | string | null;
+  source_proposal_id: string;
+  source_cycle_name: string;
+};
+
 // Row shape from cycle_funding_report RPC (numerics arrive as strings). One row
 // per funded proposal; off_cycle is flagged via `type` for separate sectioning.
 export type CycleFundingReportRow = {

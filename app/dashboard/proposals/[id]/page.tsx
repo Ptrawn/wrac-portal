@@ -25,7 +25,7 @@ import {
   type Proposal,
   type ProposalDocument,
 } from "@/lib/proposals";
-import { stageForProposalType } from "@/lib/reviews";
+import { stageForProposalType, type PlanContextRow } from "@/lib/reviews";
 import { ProposalWorkspace } from "./workspace";
 
 type BudgetYear = { year_number: number; planned_amount: number | string };
@@ -140,6 +140,45 @@ export default async function ProposalDetailPage({
     parent = (parentData as { id: string; title: string } | null) ?? null;
   }
 
+  // Continuation context: the ORIGINAL multi-year plan to compare the new ask
+  // against. Zero rows for anything without a parent.
+  const isContinuation = proposal.type === "continuation";
+  let continuation: {
+    yearNumber: number;
+    projectedThisYear: string | null;
+    originalPlan: {
+      year_number: number;
+      planned_amount: string;
+      source_cycle_name: string;
+    }[];
+    parentId: string | null;
+    parentTitle: string | null;
+  } | null = null;
+  if (isContinuation) {
+    const { data: planData } = await supabase.rpc("proposal_plan_context", {
+      p_id: id,
+    });
+    const planRows = (planData as PlanContextRow[] | null) ?? [];
+    const thisYear = planRows.find(
+      (r) => r.year_number === proposal.year_number,
+    );
+    continuation = {
+      yearNumber: proposal.year_number,
+      projectedThisYear:
+        thisYear?.planned_amount == null
+          ? null
+          : String(thisYear.planned_amount),
+      originalPlan: planRows.map((r) => ({
+        year_number: r.year_number,
+        planned_amount:
+          r.planned_amount == null ? "" : String(r.planned_amount),
+        source_cycle_name: r.source_cycle_name,
+      })),
+      parentId: parent?.id ?? null,
+      parentTitle: parent?.title ?? null,
+    };
+  }
+
   const { data: profileData } = await supabase
     .from("profiles")
     .select("cv_path")
@@ -181,7 +220,9 @@ export default async function ProposalDetailPage({
                   href={`/dashboard/proposals/${parent.id}`}
                   className="underline underline-offset-4"
                 >
-                  View your original pre-proposal ({parent.title})
+                  {isContinuation
+                    ? `View the funded proposal you're continuing (${parent.title})`
+                    : `View your original pre-proposal (${parent.title})`}
                 </Link>
               </p>
             )}
@@ -217,6 +258,8 @@ export default async function ProposalDetailPage({
                 planned_amount:
                   b.planned_amount == null ? "" : String(b.planned_amount),
               }))}
+              projectStatus={project?.status ?? "proposed"}
+              continuation={continuation}
             />
           </CardContent>
         </Card>

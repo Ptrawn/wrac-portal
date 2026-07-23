@@ -15,6 +15,7 @@ import { proposalTypeLabel, type ProposalDocument } from "@/lib/proposals";
 import {
   isReviewEditable,
   stageForProposalType,
+  type PlanContextRow,
   type Review,
   type ReviewAnswer,
 } from "@/lib/reviews";
@@ -127,6 +128,17 @@ export default async function ReviewWorkspacePage({
     .eq("proposal_id", id);
   const documents = (documentData as ProposalDocument[] | null) ?? [];
 
+  // Continuation: the ORIGINAL projection to compare the new ask against.
+  let planContext: PlanContextRow[] = [];
+  if (proposal.type === "continuation") {
+    const { data: planData } = await supabase.rpc("proposal_plan_context", {
+      p_id: id,
+    });
+    planContext = (planData as PlanContextRow[] | null) ?? [];
+  }
+  const projectedThisYear =
+    planContext.find((r) => r.year_number === proposal.year_number) ?? null;
+
   // Parent link only if the parent is also visible to this member.
   let parent: { id: string; title: string } | null = null;
   if (proposal.parent_proposal_id) {
@@ -185,6 +197,24 @@ export default async function ReviewWorkspacePage({
               <span className="text-muted-foreground">Requested amount</span>
               <span>{formatBudget(proposal.requested_amount)}</span>
             </div>
+
+            {proposal.type === "continuation" && projectedThisYear && (
+              <div className="text-sm rounded-md border bg-accent p-3">
+                Originally projected{" "}
+                <span className="font-medium">
+                  {formatBudget(projectedThisYear.planned_amount)}
+                </span>{" "}
+                for Year {proposal.year_number}
+                {projectedThisYear.source_cycle_name
+                  ? ` (from ${projectedThisYear.source_cycle_name})`
+                  : ""}
+                ; now requesting{" "}
+                <span className="font-medium">
+                  {formatBudget(proposal.requested_amount)}
+                </span>
+                .
+              </div>
+            )}
 
             {budgetYears.length > 0 && (
               <div className="text-sm">

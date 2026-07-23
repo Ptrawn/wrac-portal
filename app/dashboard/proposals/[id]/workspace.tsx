@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatBudget, type DocumentRequirement } from "@/lib/cycles";
 import type { ProposalDocument } from "@/lib/proposals";
 import {
+  endProject,
   getProposalFileUrl,
   rescindProposal,
   saveBudgetPlan,
@@ -18,6 +20,18 @@ import {
 } from "../actions";
 
 type BudgetYearInput = { year_number: number; planned_amount: string };
+
+type ContinuationInfo = {
+  yearNumber: number;
+  projectedThisYear: string | null;
+  originalPlan: {
+    year_number: number;
+    planned_amount: string;
+    source_cycle_name: string;
+  }[];
+  parentId: string | null;
+  parentTitle: string | null;
+};
 
 type SubmissionInfo = {
   canSubmit: boolean;
@@ -41,6 +55,8 @@ type Props = {
   documents: ProposalDocument[];
   budgetYears: BudgetYearInput[];
   submission: SubmissionInfo;
+  projectStatus: string;
+  continuation: ContinuationInfo | null;
 };
 
 export function ProposalWorkspace(props: Props) {
@@ -57,6 +73,8 @@ export function ProposalWorkspace(props: Props) {
     initialPlannedYears,
     budgetYears,
     submission,
+    projectStatus,
+    continuation,
   } = props;
 
   const isFull = type === "full";
@@ -74,6 +92,10 @@ export function ProposalWorkspace(props: Props) {
         <div className="bg-accent text-sm p-3 rounded-md">
           This proposal is locked ({state}). It can no longer be edited.
         </div>
+      )}
+
+      {type === "continuation" && continuation && (
+        <ContinuationContext continuation={continuation} />
       )}
 
       <DetailsSection {...props} />
@@ -126,6 +148,143 @@ export function ProposalWorkspace(props: Props) {
       )}
 
       <RescindSection proposalId={proposalId} state={state} />
+
+      {(projectStatus === "active" || projectStatus === "proposed") && (
+        <EndProjectSection projectId={projectId} />
+      )}
+    </div>
+  );
+}
+
+function ContinuationContext({
+  continuation,
+}: {
+  continuation: ContinuationInfo;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-md border p-3">
+      <h3 className="font-semibold">Continuation of a funded project</h3>
+      {continuation.parentId && (
+        <Link
+          href={`/dashboard/proposals/${continuation.parentId}`}
+          className="text-sm underline underline-offset-4 w-fit"
+        >
+          View the funded proposal you&apos;re continuing
+          {continuation.parentTitle ? ` (${continuation.parentTitle})` : ""}
+        </Link>
+      )}
+      {continuation.originalPlan.length > 0 ? (
+        <div className="text-sm">
+          <div className="text-muted-foreground mb-1">
+            Your original multi-year projection
+            {continuation.originalPlan[0]?.source_cycle_name
+              ? ` (from ${continuation.originalPlan[0].source_cycle_name})`
+              : ""}
+            :
+          </div>
+          <ul className="flex flex-col gap-0.5">
+            {continuation.originalPlan.map((row) => (
+              <li
+                key={row.year_number}
+                className={
+                  "grid grid-cols-[8rem_1fr] " +
+                  (row.year_number === continuation.yearNumber
+                    ? "font-medium"
+                    : "text-muted-foreground")
+                }
+              >
+                <span>
+                  Year {row.year_number}
+                  {row.year_number === continuation.yearNumber
+                    ? " (this request)"
+                    : ""}
+                </span>
+                <span>
+                  {row.planned_amount === ""
+                    ? "—"
+                    : formatBudget(row.planned_amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No original multi-year plan is on file for this project.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EndProjectSection({ projectId }: { projectId: string }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const end = () => {
+    if (reason.trim() === "") {
+      setError("Please give a short reason for ending the project.");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await endProject(projectId, reason.trim());
+      if (res?.error) setError(res.error);
+      else router.refresh();
+    });
+  };
+
+  return (
+    <div className="border-t pt-4 flex flex-col gap-2">
+      {!confirming ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-fit"
+          onClick={() => setConfirming(true)}
+        >
+          End this project
+        </Button>
+      ) : (
+        <div className="flex flex-col gap-2 text-sm">
+          <p>
+            Ending this project stops any future funding requests for it and
+            means a final report will be required. This affects the whole
+            project, not just this proposal. Give a short reason:
+          </p>
+          <Input
+            aria-label="Reason for ending the project"
+            placeholder="Reason (required)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={isPending}
+              onClick={end}
+            >
+              {isPending ? "Ending…" : "End project"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => {
+                setConfirming(false);
+                setError(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+      {error && <p className="text-sm text-red-500">{error}</p>}
     </div>
   );
 }
@@ -138,6 +297,7 @@ function DetailsSection({
   initialTitle,
   initialAmount,
   initialPlannedYears,
+  continuation,
 }: Props) {
   const router = useRouter();
   const isFull = type === "full";
@@ -175,7 +335,9 @@ function DetailsSection({
           : amount.trim() === ""
             ? null
             : amount.trim(),
-        plannedYears: isFull ? undefined : Number(plannedYears),
+        // Only a pre-proposal sets the project's planned years; continuations
+        // inherit the plan fixed at year 1 and off-cycle isn't multi-year here.
+        plannedYears: type === "pre" ? Number(plannedYears) : undefined,
       });
       if (res?.error) setError(res.error);
       else {
@@ -197,32 +359,50 @@ function DetailsSection({
         />
       </div>
       {!isFull && (
-        <>
-          <div className="grid gap-2">
-            <Label htmlFor="amount">Requested amount (this year)</Label>
-            <Input
-              id="amount"
-              type="number"
-              min="0"
-              step="0.01"
-              className="w-40"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="planned_years">Planned years (1–10)</Label>
-            <Input
-              id="planned_years"
-              type="number"
-              min="1"
-              max="10"
-              className="w-28"
-              value={plannedYears}
-              onChange={(e) => setPlannedYears(e.target.value)}
-            />
-          </div>
-        </>
+        <div className="grid gap-2">
+          {type === "continuation" && continuation && (
+            <p className="text-sm rounded-md border bg-accent p-2">
+              {continuation.projectedThisYear != null ? (
+                <>
+                  Originally projected{" "}
+                  <span className="font-semibold">
+                    {formatBudget(continuation.projectedThisYear)}
+                  </span>{" "}
+                  for Year {continuation.yearNumber} in the multi-year plan.
+                </>
+              ) : (
+                <>
+                  No amount was projected for Year {continuation.yearNumber} in
+                  the original plan.
+                </>
+              )}
+            </p>
+          )}
+          <Label htmlFor="amount">Requested amount (this year)</Label>
+          <Input
+            id="amount"
+            type="number"
+            min="0"
+            step="0.01"
+            className="w-40"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </div>
+      )}
+      {type === "pre" && (
+        <div className="grid gap-2">
+          <Label htmlFor="planned_years">Planned years (1–10)</Label>
+          <Input
+            id="planned_years"
+            type="number"
+            min="1"
+            max="10"
+            className="w-28"
+            value={plannedYears}
+            onChange={(e) => setPlannedYears(e.target.value)}
+          />
+        </div>
       )}
       {error && <p className="text-sm text-red-500">{error}</p>}
       {saved && !error && <p className="text-sm text-green-600">Saved.</p>}

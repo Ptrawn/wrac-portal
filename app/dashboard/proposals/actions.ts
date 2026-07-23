@@ -280,6 +280,26 @@ export async function submitProposal(
   return { ok: true };
 }
 
+/**
+ * Researcher ends their own project early (stops future funding requests and
+ * flags a final report). Ends the whole project, not just this proposal.
+ */
+export async function endProject(
+  projectId: string,
+  reason: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("end_project", {
+    p_project_id: projectId,
+    p_reason: reason,
+  });
+  if (error) return { error: friendly(error.message) };
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/proposals/${projectId}`);
+  return { ok: true };
+}
+
 /** Withdraw a proposal (preserves history) via the RPC. */
 export async function rescindProposal(
   proposalId: string,
