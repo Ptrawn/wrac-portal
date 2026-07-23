@@ -80,6 +80,16 @@ export default async function ManagerProposalsPage({
     .eq("role", "committee");
   const totalReviewers = committeeCount ?? 0;
 
+  // Proposals with a manager late-submission override, flagged on their rows.
+  const { data: overrideData } = await supabase
+    .from("proposals")
+    .select("id")
+    .eq("cycle_id", cycleId)
+    .eq("late_submission_allowed", true);
+  const overrideIds = new Set(
+    ((overrideData as { id: string }[] | null) ?? []).map((o) => o.id),
+  );
+
   const submittedCount = rows.filter((r) => r.state === "submitted").length;
 
   return (
@@ -152,6 +162,14 @@ export default async function ManagerProposalsPage({
                                   {r.title}
                                 </span>
                                 <div className="flex items-center gap-2 shrink-0">
+                                  {overrideIds.has(r.proposal_id) && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-amber-500/50 text-amber-600"
+                                    >
+                                      Late submission allowed
+                                    </Badge>
+                                  )}
                                   {r.outcome && (
                                     <Badge>{outcomeLabel(r.outcome)}</Badge>
                                   )}

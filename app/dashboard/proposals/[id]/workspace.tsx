@@ -19,6 +19,14 @@ import {
 
 type BudgetYearInput = { year_number: number; planned_amount: string };
 
+type SubmissionInfo = {
+  canSubmit: boolean;
+  blockedReason: "wrong_stage" | "deadline_passed" | null;
+  message: string | null;
+  overrideActive: boolean;
+  deadlineLong: string | null;
+};
+
 type Props = {
   proposalId: string;
   projectId: string;
@@ -32,6 +40,7 @@ type Props = {
   requirements: DocumentRequirement[];
   documents: ProposalDocument[];
   budgetYears: BudgetYearInput[];
+  submission: SubmissionInfo;
 };
 
 export function ProposalWorkspace(props: Props) {
@@ -47,6 +56,7 @@ export function ProposalWorkspace(props: Props) {
     initialAmount,
     initialPlannedYears,
     budgetYears,
+    submission,
   } = props;
 
   const isFull = type === "full";
@@ -111,6 +121,7 @@ export function ProposalWorkspace(props: Props) {
           proposalId={proposalId}
           hasCv={hasCv}
           allRequiredUploaded={allRequiredUploaded}
+          submission={submission}
         />
       )}
 
@@ -618,10 +629,12 @@ function SubmitSection({
   proposalId,
   hasCv,
   allRequiredUploaded,
+  submission,
 }: {
   proposalId: string;
   hasCv: boolean;
   allRequiredUploaded: boolean;
+  submission: SubmissionInfo;
 }) {
   const router = useRouter();
   const [reviewing, setReviewing] = useState(false);
@@ -637,51 +650,73 @@ function SubmitSection({
     });
   };
 
+  const blocked = !submission.canSubmit;
+
   return (
     <div className="border-t pt-4 flex flex-col gap-2">
       <h3 className="font-semibold">Review &amp; submit</h3>
-      {!hasCv && (
-        <p className="text-sm text-red-500">
-          You have no CV on file. Upload one on your profile before submitting.
-        </p>
-      )}
-      {!allRequiredUploaded && (
-        <p className="text-sm text-muted-foreground">
-          Upload every required document to enable submission.
-        </p>
-      )}
 
-      {!reviewing ? (
-        <Button
-          size="sm"
-          className="w-fit"
-          disabled={!allRequiredUploaded || !hasCv || isPending}
-          onClick={() => setReviewing(true)}
-        >
-          Review &amp; submit
-        </Button>
-      ) : (
-        <div className="flex flex-col gap-2 text-sm">
-          <p>
-            Submitting locks this proposal. You can still rescind it, and the
-            Manager can reopen it before the deadline. Continue?
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" disabled={isPending} onClick={submit}>
-              {isPending ? "Submitting…" : "Submit proposal"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => setReviewing(false)}
-            >
-              Cancel
-            </Button>
-          </div>
+      {submission.overrideActive && submission.message && (
+        <div className="text-sm p-3 rounded-md border bg-accent">
+          {submission.message}
         </div>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {blocked ? (
+        // Stage/deadline gate: the submit control is replaced by the reason.
+        <div className="text-sm p-3 rounded-md border border-destructive/40 bg-destructive/10">
+          {submission.message}
+        </div>
+      ) : (
+        <>
+          {submission.deadlineLong && (
+            <p className="text-sm font-medium">Due {submission.deadlineLong}</p>
+          )}
+          {!hasCv && (
+            <p className="text-sm text-red-500">
+              You have no CV on file. Upload one on your profile before
+              submitting.
+            </p>
+          )}
+          {!allRequiredUploaded && (
+            <p className="text-sm text-muted-foreground">
+              Upload every required document to enable submission.
+            </p>
+          )}
+
+          {!reviewing ? (
+            <Button
+              size="sm"
+              className="w-fit"
+              disabled={!allRequiredUploaded || !hasCv || isPending}
+              onClick={() => setReviewing(true)}
+            >
+              Review &amp; submit
+            </Button>
+          ) : (
+            <div className="flex flex-col gap-2 text-sm">
+              <p>
+                Submitting locks this proposal. You can still rescind it, and the
+                Manager can reopen it before the deadline. Continue?
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" disabled={isPending} onClick={submit}>
+                  {isPending ? "Submitting…" : "Submit proposal"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => setReviewing(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+          {error && <p className="text-sm text-red-500">{error}</p>}
+        </>
+      )}
     </div>
   );
 }

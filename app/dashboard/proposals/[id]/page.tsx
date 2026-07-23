@@ -10,9 +10,14 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireApprovedResearcher } from "@/lib/auth/profile";
-import { formatDate } from "@/lib/cycles";
+import {
+  cycleStagePhrase,
+  formatLongDate,
+  pacificDateToday,
+} from "@/lib/cycles";
 import type { DocumentRequirement } from "@/lib/cycles";
 import {
+  computeSubmissionEligibility,
   isProposalEditable,
   proposalStateLabel,
   proposalTypeLabel,
@@ -91,6 +96,18 @@ export default async function ProposalDetailPage({
       ? (cycleData?.pre_proposal_closes_at ?? null)
       : (cycleData?.full_proposal_due_at ?? null);
 
+  // Client-visible mirror of submit_proposal's stage + deadline enforcement.
+  const eligibility = computeSubmissionEligibility({
+    type: proposal.type,
+    cycleStatus: cycleData?.status ?? "setup",
+    preProposalClosesAt: cycleData?.pre_proposal_closes_at ?? null,
+    fullProposalDueAt: cycleData?.full_proposal_due_at ?? null,
+    lateSubmissionAllowed: proposal.late_submission_allowed,
+    stagePhrase: cycleStagePhrase,
+    formatLongDate,
+    pacificToday: pacificDateToday(),
+  });
+
   const { data: requirementData } = await supabase
     .from("document_requirements")
     .select("*")
@@ -156,7 +173,7 @@ export default async function ProposalDetailPage({
                 ? `${cycleData.name} (${cycleData.year})`
                 : "Cycle unavailable"}{" "}
               · {proposalTypeLabel(proposal.type)} · Deadline{" "}
-              {formatDate(deadline)}
+              {formatLongDate(deadline)}
             </p>
             {parent && (
               <p className="text-sm mt-1">
@@ -177,6 +194,15 @@ export default async function ProposalDetailPage({
               state={proposal.state}
               editable={editable}
               hasCv={hasCv}
+              submission={{
+                canSubmit: eligibility.canSubmit,
+                blockedReason: eligibility.blockedReason,
+                message: eligibility.message,
+                overrideActive: eligibility.overrideActive,
+                deadlineLong: eligibility.deadline
+                  ? formatLongDate(eligibility.deadline)
+                  : null,
+              }}
               initialTitle={proposal.title}
               initialAmount={
                 proposal.requested_amount == null

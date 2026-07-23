@@ -12,8 +12,16 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireApprovedResearcher } from "@/lib/auth/profile";
-import { formatBudget, formatDate } from "@/lib/cycles";
 import {
+  cycleStagePhrase,
+  formatBudget,
+  formatDate,
+  formatLongDate,
+  pacificDateToday,
+} from "@/lib/cycles";
+import {
+  computeSubmissionEligibility,
+  isProposalEditable,
   proposalStateLabel,
   proposalTypeLabel,
   type Proposal,
@@ -27,7 +35,13 @@ type OpenCycle = {
 };
 
 type ProposalWithCycle = Proposal & {
-  cycle: { name: string; year: number } | null;
+  cycle: {
+    name: string;
+    year: number;
+    status: string;
+    pre_proposal_closes_at: string | null;
+    full_proposal_due_at: string | null;
+  } | null;
 };
 
 function stateBadgeVariant(
@@ -59,9 +73,29 @@ export default async function DashboardPage() {
 
   const { data: proposalData } = await supabase
     .from("proposals")
-    .select("*, cycle:cycles(name, year)")
+    .select(
+      "*, cycle:cycles(name, year, status, pre_proposal_closes_at, full_proposal_due_at)",
+    )
     .order("created_at", { ascending: false });
   const proposals = (proposalData as ProposalWithCycle[] | null) ?? [];
+  const pacificToday = pacificDateToday();
+
+  // A draft/reopened proposal whose stage/deadline no longer allows submission
+  // (and without a manager override) is flagged so the researcher isn't
+  // surprised when they open it.
+  const submissionClosed = (p: ProposalWithCycle): boolean => {
+    if (!isProposalEditable(p.state) || !p.cycle) return false;
+    return !computeSubmissionEligibility({
+      type: p.type,
+      cycleStatus: p.cycle.status,
+      preProposalClosesAt: p.cycle.pre_proposal_closes_at,
+      fullProposalDueAt: p.cycle.full_proposal_due_at,
+      lateSubmissionAllowed: p.late_submission_allowed,
+      stagePhrase: cycleStagePhrase,
+      formatLongDate,
+      pacificToday,
+    }).canSubmit;
+  };
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -134,9 +168,16 @@ export default async function DashboardPage() {
                       <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-medium text-sm">{p.title}</span>
-                          <Badge variant={stateBadgeVariant(p.state)}>
-                            {proposalStateLabel(p.state)}
-                          </Badge>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {submissionClosed(p) && (
+                              <Badge variant="outline" className="text-destructive border-destructive/40">
+                                Submission closed
+                              </Badge>
+                            )}
+                            <Badge variant={stateBadgeVariant(p.state)}>
+                              {proposalStateLabel(p.state)}
+                            </Badge>
+                          </div>
                         </div>
                         <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
                           <span>

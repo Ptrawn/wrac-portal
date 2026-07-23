@@ -59,6 +59,21 @@ export async function reopenProposalAction(
   return { ok: true };
 }
 
+export async function setLateSubmission(
+  cycleId: string,
+  proposalId: string,
+  allowed: boolean,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("allow_late_submission", {
+    p_id: proposalId,
+    p_allowed: allowed,
+  });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId, proposalId);
+  return { ok: true };
+}
+
 export async function reopenReviewAction(
   cycleId: string,
   proposalId: string,

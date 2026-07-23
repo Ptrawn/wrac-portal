@@ -100,3 +100,56 @@ export function formatBudget(value: number | string | null): string {
 export function formatDate(value: string | null): string {
   return value && value.length > 0 ? value : "—";
 }
+
+const LONG_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * Human-readable date, e.g. "2026-11-30" -> "30 November 2026", matching the
+ * wording the submit_proposal RPC uses in its error messages. Parses the
+ * y/m/d parts directly (no Date object) so it never shifts across time zones.
+ */
+export function formatLongDate(value: string | null): string {
+  if (!value) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m) return value;
+  const [, y, mo, d] = m;
+  const monthName = LONG_MONTHS[Number(mo) - 1] ?? mo;
+  return `${Number(d)} ${monthName} ${y}`;
+}
+
+// Mirrors the stage phrases in submit_proposal's error messages.
+export const CYCLE_STAGE_PHRASES: Record<CycleStatus, string> = {
+  setup: "it is still in setup",
+  pre_proposal_open: "it is in the pre-proposal stage",
+  pre_review: "it is in pre-proposal review",
+  advance_decision: "it is in the advancement-decision stage",
+  full_proposal_open: "it is in the full-proposal stage",
+  full_review: "it is in full-proposal review",
+  deliberation: "it is in deliberation",
+  funding_decisions: "it is in funding decisions",
+  closed: "it is closed",
+};
+
+export function cycleStagePhrase(status: string): string {
+  return (
+    CYCLE_STAGE_PHRASES[status as CycleStatus] ?? `it is in the ${status} stage`
+  );
+}
+
+/**
+ * Today's calendar date in America/Los_Angeles as "YYYY-MM-DD". Deadlines are
+ * inclusive and mean end-of-day Pacific, so a stage deadline is passed exactly
+ * when this Pacific date has rolled past it — the client-visible equivalent of
+ * the RPC's `now() >= ((deadline + 1 day) at time zone 'America/Los_Angeles')`.
+ */
+export function pacificDateToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}

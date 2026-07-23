@@ -24,6 +24,7 @@ import {
 import { ProposalDecisions } from "./proposal-decisions";
 import { ManagerDocs } from "./manager-docs";
 import { ReopenReviewButton } from "./reopen-review-button";
+import { LateSubmissionControl } from "./late-submission-control";
 
 type DetailProposal = {
   id: string;
@@ -37,6 +38,7 @@ type DetailProposal = {
   funded_amount: number | string | null;
   parent_proposal_id: string | null;
   cv_snapshot_path: string | null;
+  late_submission_allowed: boolean;
   researcher: { full_name: string | null; institution: string | null } | null;
   project: { title: string; planned_years: number } | null;
   cycle: { name: string; year: number } | null;
@@ -65,7 +67,7 @@ export default async function ManagerProposalDetailPage({
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, state, outcome, cycle_id, year_number, requested_amount, funded_amount, parent_proposal_id, cv_snapshot_path, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years), cycle:cycles(name, year)",
+      "id, title, type, state, outcome, cycle_id, year_number, requested_amount, funded_amount, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years), cycle:cycles(name, year)",
     )
     .eq("id", proposalId)
     .maybeSingle();
@@ -245,6 +247,21 @@ export default async function ManagerProposalDetailPage({
                 View the original application ({parent.title})
               </Link>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Submission window (stage/deadline override) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Submission window</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LateSubmissionControl
+              cycleId={cycleId}
+              proposalId={proposal.id}
+              allowed={proposal.late_submission_allowed}
+              isOffCycle={proposal.type === "off_cycle"}
+            />
           </CardContent>
         </Card>
 
