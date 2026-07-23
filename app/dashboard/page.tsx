@@ -26,6 +26,29 @@ import {
   proposalTypeLabel,
   type Proposal,
 } from "@/lib/proposals";
+import { reportStateLabel, reportTypeLabel } from "@/lib/reviews";
+
+type ReportRow = {
+  id: string;
+  type: string;
+  label: string | null;
+  due_date: string | null;
+  state: string;
+  project: { title: string } | null;
+};
+
+function reportStateBadgeVariant(
+  state: string,
+): "default" | "secondary" | "outline" {
+  switch (state) {
+    case "submitted":
+      return "default";
+    case "reopened":
+      return "outline";
+    default:
+      return "secondary";
+  }
+}
 
 type OpenCycle = {
   id: string;
@@ -42,7 +65,11 @@ type ProposalWithCycle = Proposal & {
     pre_proposal_closes_at: string | null;
     full_proposal_due_at: string | null;
   } | null;
-  project: { status: string; planned_years: number } | null;
+  project: {
+    status: string;
+    planned_years: number;
+    final_report_required: boolean;
+  } | null;
 };
 
 function stateBadgeVariant(
@@ -75,11 +102,21 @@ export default async function DashboardPage() {
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "*, cycle:cycles(name, year, status, pre_proposal_closes_at, full_proposal_due_at), project:projects(status, planned_years)",
+      "*, cycle:cycles(name, year, status, pre_proposal_closes_at, full_proposal_due_at), project:projects(status, planned_years, final_report_required)",
     )
     .order("created_at", { ascending: false });
   const proposals = (proposalData as ProposalWithCycle[] | null) ?? [];
   const pacificToday = pacificDateToday();
+
+  // Reports the researcher owns (RLS scopes to their own projects).
+  const { data: reportData } = await supabase
+    .from("reports")
+    .select("id, type, label, due_date, state, project:projects(title)")
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+  const reports = (reportData as unknown as ReportRow[] | null) ?? [];
+  const reportOverdue = (r: ReportRow): boolean =>
+    r.state === "pending" && r.due_date != null && r.due_date < pacificToday;
 
   // A draft/reopened proposal whose stage/deadline no longer allows submission
   // (and without a manager override) is flagged so the researcher isn't
@@ -154,6 +191,58 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-xl">Reports due</CardTitle>
+            <CardDescription>
+              Status and final reports on your funded projects.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {reports.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                You have no reports to submit right now.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {reports.map((r) => (
+                  <li key={r.id}>
+                    <Link href={`/dashboard/reports/${r.id}`}>
+                      <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-sm">
+                            {r.project?.title ?? "Report"}{" "}
+                            <span className="text-muted-foreground font-normal">
+                              — {reportTypeLabel(r.type)} report
+                              {r.label ? ` · ${r.label}` : ""}
+                            </span>
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {reportOverdue(r) && (
+                              <Badge
+                                variant="outline"
+                                className="text-destructive border-destructive/40"
+                              >
+                                Overdue
+                              </Badge>
+                            )}
+                            <Badge variant={reportStateBadgeVariant(r.state)}>
+                              {reportStateLabel(r.state)}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Due {formatDate(r.due_date)}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-xl">My proposals</CardTitle>
           </CardHeader>
           <CardContent>
@@ -170,6 +259,14 @@ export default async function DashboardPage() {
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-medium text-sm">{p.title}</span>
                           <div className="flex items-center gap-2 shrink-0">
+                            {p.project?.final_report_required && (
+                              <Badge
+                                variant="outline"
+                                className="text-destructive border-destructive/40"
+                              >
+                                Final report required
+                              </Badge>
+                            )}
                             {p.project?.status === "ended" && (
                               <Badge variant="outline">Project ended</Badge>
                             )}

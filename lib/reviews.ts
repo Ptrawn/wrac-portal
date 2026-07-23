@@ -146,6 +146,11 @@ export function reportTypeLabel(type: string): string {
   return type === "final" ? "Final" : "Status";
 }
 
+/** Report document stage: final reports use 'final_report' slots, else 'status_report'. */
+export function stageForReportType(type: string): "status_report" | "final_report" {
+  return type === "final" ? "final_report" : "status_report";
+}
+
 export function reportStateLabel(state: string): string {
   switch (state) {
     case "submitted":
