@@ -1,6 +1,7 @@
 -- ============================================================================
--- Migration: continuation candidate + invitation RPCs (manager-only), plus a
--- plan-context reader for review/comparison.
+-- Migration: continuation candidate + invitation RPCs (manager-only), a
+-- plan-context reader for review/comparison, AND a project-lifecycle fix so a
+-- funded project is promoted to 'active'.
 --
 -- Multi-year projects require a fresh proposal each year, funded from that
 -- year's pool. Continuations are MANAGER-INVITED (like full proposals) and
@@ -13,16 +14,102 @@
 -- Reuses existing functions: public.is_manager(uuid), public.is_committee(uuid),
 --   public.proposal_visible_to_committee(uuid). Does NOT redefine them.
 --
--- NOTE on projects.status: nothing currently promotes a project to 'active'
--- when a proposal is funded (only end_project writes status, setting 'ended';
--- projects default to 'proposed'). So eligibility treats status IN
--- ('proposed','active') as continuable, which excludes completed/ended/declined.
+-- PROJECT-STATUS FIX: previously nothing promoted a project to 'active' when a
+-- proposal was funded (only end_project wrote status, setting 'ended'; projects
+-- default to 'proposed'), leaving projects permanently 'proposed'. The
+-- researcher dashboard and reports lifecycle (active -> completed when a final
+-- report lands) need this distinction, so set_funding_decision now promotes the
+-- project to 'active' on a funding award -- only from 'proposed', never
+-- downgrading a closed ('completed'/'ended'/'declined') project. Existing funded
+-- projects predate this fix and remain 'proposed', so continuation eligibility
+-- accepts status IN ('proposed','active').
 --
 -- NOTE: apply by pasting into the Supabase dashboard SQL editor.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. list_continuation_candidates(p_cycle_id) -- projects eligible to continue
+-- 1. set_funding_decision(p_id, p_funded, p_amount) -- RESTATED
+--    Records a funding decision (unchanged behaviour) AND, on a funding award,
+--    promotes the proposal's project 'proposed' -> 'active'. The projects guard
+--    (enforce_project_owner_rules) blocks non-admin/non-manager status changes,
+--    so the project write is wrapped in the app.project_rpc bypass flag exactly
+--    as end_project does. Managers pass the guard anyway; the flag makes the
+--    sanctioned write explicit and safe.
+-- ----------------------------------------------------------------------------
+create or replace function public.set_funding_decision(
+  p_id uuid,
+  p_funded boolean,
+  p_amount numeric
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type    text;
+  v_state   text;
+  v_project uuid;
+begin
+  if not public.is_manager(auth.uid()) then
+    raise exception 'Only a manager may record a funding decision'
+      using errcode = '42501';
+  end if;
+
+  select type, state, project_id into v_type, v_state, v_project
+  from public.proposals
+  where id = p_id
+  for update;
+
+  if v_type is null then
+    raise exception 'Proposal not found' using errcode = 'P0002';
+  end if;
+  if v_state <> 'submitted' then
+    raise exception 'Only a submitted proposal can receive a funding decision'
+      using errcode = '42501';
+  end if;
+  if v_type not in ('full', 'continuation', 'off_cycle') then
+    raise exception 'Pre-proposals do not receive funding decisions'
+      using errcode = '42501';
+  end if;
+
+  -- No budget cap here: the Manager may deliberately over/under-allocate during
+  -- discussion; the UI shows remaining and can warn. Re-deciding is allowed.
+  perform set_config('app.proposal_rpc', 'on', true);
+  if p_funded then
+    if p_amount is null or p_amount < 0 then
+      raise exception 'A funded amount must be provided and be zero or greater'
+        using errcode = '22023';  -- invalid_parameter_value
+    end if;
+    update public.proposals
+    set outcome = 'funded', funded_amount = p_amount
+    where id = p_id;
+  else
+    update public.proposals
+    set outcome = 'not_funded', funded_amount = null
+    where id = p_id;
+  end if;
+  perform set_config('app.proposal_rpc', 'off', true);
+
+  -- Promote the project to 'active' on a funding award. Only from 'proposed'
+  -- (never downgrade a completed/ended/declined project). Guard bypass mirrors
+  -- end_project so the sanctioned status write passes enforce_project_owner_rules.
+  if p_funded then
+    perform set_config('app.project_rpc', 'on', true);
+    update public.projects
+    set status = 'active'
+    where id = v_project
+      and status = 'proposed';
+    perform set_config('app.project_rpc', 'off', true);
+  end if;
+end;
+$$;
+
+revoke all on function public.set_funding_decision(uuid, boolean, numeric) from public, anon;
+grant execute on function public.set_funding_decision(uuid, boolean, numeric) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 2. list_continuation_candidates(p_cycle_id) -- projects eligible to continue
 -- ----------------------------------------------------------------------------
 create or replace function public.list_continuation_candidates(p_cycle_id uuid)
 returns table (
@@ -106,7 +193,7 @@ revoke all on function public.list_continuation_candidates(uuid) from public, an
 grant execute on function public.list_continuation_candidates(uuid) to authenticated;
 
 -- ----------------------------------------------------------------------------
--- 2. invite_continuation(p_project_id, p_cycle_id) -- create the draft
+-- 3. invite_continuation(p_project_id, p_cycle_id) -- create the draft
 -- ----------------------------------------------------------------------------
 create or replace function public.invite_continuation(p_project_id uuid, p_cycle_id uuid)
 returns uuid
@@ -210,7 +297,7 @@ revoke all on function public.invite_continuation(uuid, uuid) from public, anon;
 grant execute on function public.invite_continuation(uuid, uuid) to authenticated;
 
 -- ----------------------------------------------------------------------------
--- 3. proposal_plan_context(p_id) -- the ORIGINAL multi-year plan for comparison
+-- 4. proposal_plan_context(p_id) -- the ORIGINAL multi-year plan for comparison
 --    Access: the proposal's owner, a committee member who can see it, or a
 --    manager (checked in that order). For a continuation, returns the original
 --    plan from the project's lineage (the full proposal that carries the plan)
