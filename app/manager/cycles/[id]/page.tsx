@@ -89,7 +89,10 @@ export default async function CycleDetailPage({
               <Link href={`/manager/cycles/${id}/allocation`}>Allocation</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link href={`/manager/cycles/${id}/report`}>Report</Link>
+              <Link href={`/manager/cycles/${id}/reports`}>Reports</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/manager/cycles/${id}/report`}>Funding report</Link>
             </Button>
           </div>
         </div>

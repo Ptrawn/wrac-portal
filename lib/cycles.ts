@@ -22,6 +22,8 @@ export type Cycle = {
   pre_review_due_at: string | null;
   full_proposal_due_at: string | null;
   full_review_due_at: string | null;
+  default_status_report_due_at: string | null;
+  default_final_report_due_at: string | null;
   created_at: string;
   updated_at: string;
 };

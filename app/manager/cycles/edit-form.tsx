@@ -30,6 +30,12 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
   const [fullReview, setFullReview] = useState(
     orEmpty(cycle.full_review_due_at),
   );
+  const [defaultStatusDue, setDefaultStatusDue] = useState(
+    orEmpty(cycle.default_status_report_due_at),
+  );
+  const [defaultFinalDue, setDefaultFinalDue] = useState(
+    orEmpty(cycle.default_final_report_due_at),
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -54,6 +60,8 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
         pre_review_due_at: nullIfEmpty(preReview),
         full_proposal_due_at: nullIfEmpty(fullDue),
         full_review_due_at: nullIfEmpty(fullReview),
+        default_status_report_due_at: nullIfEmpty(defaultStatusDue),
+        default_final_report_due_at: nullIfEmpty(defaultFinalDue),
       });
       if (res?.error) {
         setError(res.error);
@@ -144,6 +152,38 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
               type="date"
               value={fullReview}
               onChange={(e) => setFullReview(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <h3 className="text-sm font-semibold mb-3 mt-4">
+          Report deadline defaults
+        </h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          These seed the due date when you create a report for a funded project;
+          each report keeps its own date.
+        </p>
+        <div className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="default_status_report_due">
+              Default status report due
+            </Label>
+            <Input
+              id="default_status_report_due"
+              type="date"
+              value={defaultStatusDue}
+              onChange={(e) => setDefaultStatusDue(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="default_final_report_due">
+              Default final report due
+            </Label>
+            <Input
+              id="default_final_report_due"
+              type="date"
+              value={defaultFinalDue}
+              onChange={(e) => setDefaultFinalDue(e.target.value)}
             />
           </div>
         </div>

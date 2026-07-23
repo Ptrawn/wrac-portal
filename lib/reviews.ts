@@ -142,6 +142,21 @@ export function stageForProposalType(type: string): ReviewStage {
   return type === "pre" ? "pre" : "full";
 }
 
+export function reportTypeLabel(type: string): string {
+  return type === "final" ? "Final" : "Status";
+}
+
+export function reportStateLabel(state: string): string {
+  switch (state) {
+    case "submitted":
+      return "Submitted";
+    case "reopened":
+      return "Reopened";
+    default:
+      return "Pending";
+  }
+}
+
 /** A review is editable unless it's submitted (draft / reopened / not-yet-created). */
 export function isReviewEditable(state: string | null | undefined): boolean {
   return state !== "submitted";
