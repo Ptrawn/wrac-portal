@@ -21,6 +21,8 @@ import {
   reviewStatusLabel,
   stageForProposalType,
 } from "@/lib/reviews";
+import { ProjectReportingHistory } from "@/components/reporting-history";
+import { loadProjectReportingHistory } from "@/lib/reports";
 import { ProposalDecisions } from "./proposal-decisions";
 import { ManagerDocs } from "./manager-docs";
 import { ReopenReviewButton } from "./reopen-review-button";
@@ -33,6 +35,7 @@ type DetailProposal = {
   state: string;
   outcome: string | null;
   cycle_id: string;
+  project_id: string;
   year_number: number;
   requested_amount: number | string | null;
   funded_amount: number | string | null;
@@ -67,7 +70,7 @@ export default async function ManagerProposalDetailPage({
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, state, outcome, cycle_id, year_number, requested_amount, funded_amount, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years), cycle:cycles(name, year)",
+      "id, title, type, state, outcome, cycle_id, project_id, year_number, requested_amount, funded_amount, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years), cycle:cycles(name, year)",
     )
     .eq("id", proposalId)
     .maybeSingle();
@@ -153,6 +156,9 @@ export default async function ManagerProposalDetailPage({
       .maybeSingle();
     parent = (parentData as { id: string; title: string } | null) ?? null;
   }
+
+  // Full reporting history for the project (all years), for deliberation context.
+  const reportHistory = await loadProjectReportingHistory(proposal.project_id);
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -249,6 +255,9 @@ export default async function ManagerProposalDetailPage({
             )}
           </CardContent>
         </Card>
+
+        {/* Project reporting history (all years) */}
+        <ProjectReportingHistory reports={reportHistory} />
 
         {/* Submission window (stage/deadline override) */}
         <Card>

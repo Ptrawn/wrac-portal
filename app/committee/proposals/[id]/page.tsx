@@ -19,6 +19,8 @@ import {
   type Review,
   type ReviewAnswer,
 } from "@/lib/reviews";
+import { ProjectReportingHistory } from "@/components/reporting-history";
+import { loadProjectReportingHistory } from "@/lib/reports";
 import { ProposalContextDocs } from "./context-docs";
 import { ReviewForm } from "./review-form";
 
@@ -27,6 +29,7 @@ type WorkspaceProposal = {
   title: string;
   type: string;
   cycle_id: string;
+  project_id: string;
   year_number: number;
   requested_amount: number | string | null;
   parent_proposal_id: string | null;
@@ -51,7 +54,7 @@ export default async function ReviewWorkspacePage({
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, cycle_id, year_number, requested_amount, parent_proposal_id, cv_snapshot_path, cycle:cycles(name, year, status), researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years)",
+      "id, title, type, cycle_id, project_id, year_number, requested_amount, parent_proposal_id, cv_snapshot_path, cycle:cycles(name, year, status), researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -151,6 +154,9 @@ export default async function ReviewWorkspacePage({
   }
 
   const editable = isReviewEditable(review?.state);
+
+  // Full reporting history for the project (all years), for review context.
+  const reportHistory = await loadProjectReportingHistory(proposal.project_id);
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -252,6 +258,9 @@ export default async function ReviewWorkspacePage({
             )}
           </CardContent>
         </Card>
+
+        {/* Project reporting history (all years) */}
+        <ProjectReportingHistory reports={reportHistory} />
 
         {/* My review */}
         <Card>
