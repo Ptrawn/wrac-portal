@@ -10,7 +10,15 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireCommittee } from "@/lib/auth/profile";
-import { formatBudget, formatDate, statusLabel } from "@/lib/cycles";
+import {
+  daysRemainingText,
+  daysUntilDate,
+  formatBudget,
+  formatDate,
+  formatLongDate,
+  pacificDateToday,
+  statusLabel,
+} from "@/lib/cycles";
 import { proposalTypeLabel } from "@/lib/proposals";
 import { reviewStatusLabel } from "@/lib/reviews";
 
@@ -20,8 +28,19 @@ type QueueProposal = {
   type: string;
   requested_amount: number | string | null;
   submitted_at: string | null;
-  cycle: { id: string; name: string; year: number; status: string } | null;
+  cycle: { id: string } | null;
   researcher: { full_name: string | null; institution: string | null } | null;
+};
+
+type CommitteeDashboardRow = {
+  cycle_id: string;
+  name: string;
+  status: string;
+  review_deadline: string | null;
+  review_deadline_label: string | null;
+  proposals_to_review: number;
+  my_reviews_submitted: number;
+  my_reviews_outstanding: number;
 };
 
 function reviewBadgeVariant(
@@ -44,10 +63,13 @@ export default async function CommitteeQueuePage() {
 
   const supabase = await createClient();
 
+  const { data: dashData } = await supabase.rpc("committee_dashboard");
+  const dashboard = (dashData as CommitteeDashboardRow[] | null) ?? [];
+
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, requested_amount, submitted_at, cycle:cycles(id, name, year, status), researcher:profiles!researcher_id(full_name, institution)",
+      "id, title, type, requested_amount, submitted_at, cycle:cycles(id), researcher:profiles!researcher_id(full_name, institution)",
     )
     .order("submitted_at", { ascending: true });
   // Supabase types infer to-one embeds as arrays; at runtime they're objects.
@@ -61,61 +83,91 @@ export default async function CommitteeQueuePage() {
     (reviewData ?? []).map((r) => [r.proposal_id, r.state]),
   );
 
-  // Group by cycle, preserving first-seen order.
-  const groups: {
-    cycle: QueueProposal["cycle"];
-    key: string;
-    items: QueueProposal[];
-  }[] = [];
-  const byKey = new Map<string, (typeof groups)[number]>();
+  // Group proposals by cycle id for lookup against the dashboard rows.
+  const byCycle = new Map<string, QueueProposal[]>();
   for (const p of proposals) {
     const key = p.cycle?.id ?? "none";
-    let group = byKey.get(key);
-    if (!group) {
-      group = { cycle: p.cycle, key, items: [] };
-      byKey.set(key, group);
-      groups.push(group);
-    }
-    group.items.push(p);
+    const list = byCycle.get(key) ?? [];
+    list.push(p);
+    byCycle.set(key, list);
   }
+
+  const today = pacificDateToday();
 
   return (
     <main className="min-h-screen flex flex-col items-center">
       <AppHeader email={email} />
       <div className="w-full max-w-3xl p-5 flex flex-col gap-6 mt-8">
-        <h1 className="text-2xl font-bold">Review queue</h1>
-
-        {groups.length === 0 ? (
+        <div>
+          <h1 className="text-2xl font-bold">Review dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            No proposals awaiting your review.
+            Proposals awaiting your review, by cycle.
+          </p>
+        </div>
+
+        {dashboard.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing is awaiting your review right now.
           </p>
         ) : (
-          groups.map((group) => {
-            const submittedCount = group.items.filter(
-              (p) => myReviewState.get(p.id) === "submitted",
-            ).length;
+          dashboard.map((c) => {
+            const items = byCycle.get(c.cycle_id) ?? [];
+            const days = daysUntilDate(c.review_deadline, today);
+            const overdue =
+              days != null && days < 0 && c.my_reviews_outstanding > 0;
+            const soon =
+              days != null &&
+              days >= 0 &&
+              days <= 7 &&
+              c.my_reviews_outstanding > 0;
             return (
-              <Card key={group.key}>
+              <Card key={c.cycle_id}>
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="text-xl">
-                      {group.cycle
-                        ? `${group.cycle.name} (${group.cycle.year})`
-                        : "Unknown cycle"}
-                    </CardTitle>
-                    {group.cycle && (
-                      <Badge variant="secondary">
-                        {statusLabel(group.cycle.status)}
+                    <CardTitle className="text-xl">{c.name}</CardTitle>
+                    <Badge variant="secondary">{statusLabel(c.status)}</Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm">
+                    {c.review_deadline && c.review_deadline_label ? (
+                      <span
+                        className={
+                          overdue
+                            ? "text-destructive font-medium"
+                            : soon
+                              ? "text-amber-600"
+                              : "text-muted-foreground"
+                        }
+                      >
+                        {c.review_deadline_label} {daysRemainingText(days)}
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          ({formatLongDate(c.review_deadline)})
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        No review deadline set
+                      </span>
+                    )}
+                    <span className="text-muted-foreground">
+                      {c.my_reviews_submitted} of {c.proposals_to_review} reviews
+                      submitted
+                    </span>
+                    {c.my_reviews_outstanding > 0 ? (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/50 text-amber-600"
+                      >
+                        {c.my_reviews_outstanding} outstanding
                       </Badge>
+                    ) : (
+                      <Badge variant="secondary">All in</Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {submittedCount} of {group.items.length} reviews submitted
-                  </p>
                 </CardHeader>
                 <CardContent>
                   <ul className="flex flex-col gap-2">
-                    {group.items.map((p) => {
+                    {items.map((p) => {
                       const state = myReviewState.get(p.id);
                       return (
                         <li key={p.id}>

@@ -155,3 +155,29 @@ export function pacificDateToday(): string {
     day: "2-digit",
   }).format(new Date());
 }
+
+/**
+ * Whole days from `todayStr` to `dateStr` (both "YYYY-MM-DD"). Positive = future,
+ * 0 = today, negative = past. Uses UTC midnight for both so it's tz-safe.
+ */
+export function daysUntilDate(
+  dateStr: string | null,
+  todayStr: string,
+): number | null {
+  const dm = dateStr ? /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr) : null;
+  const tm = /^(\d{4})-(\d{2})-(\d{2})/.exec(todayStr);
+  if (!dm || !tm) return null;
+  const d = Date.UTC(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]));
+  const t = Date.UTC(Number(tm[1]), Number(tm[2]) - 1, Number(tm[3]));
+  return Math.round((d - t) / 86_400_000);
+}
+
+/** Human phrase for a day delta from daysUntilDate: "in 12 days", "today", "3 days ago". */
+export function daysRemainingText(days: number | null): string {
+  if (days === null) return "—";
+  if (days === 0) return "today";
+  if (days === 1) return "in 1 day";
+  if (days > 1) return `in ${days} days`;
+  if (days === -1) return "1 day ago";
+  return `${Math.abs(days)} days ago`;
+}
