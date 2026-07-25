@@ -72,7 +72,7 @@ export function ChangePasswordForm() {
           onChange={(e) => setConfirm(e.target.value)}
         />
       </div>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={isPending} className="w-fit">
         {isPending ? "Saving…" : "Set new password"}
       </Button>

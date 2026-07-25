@@ -180,7 +180,7 @@ function NarrativeSection({
             {isSaving ? "Saving…" : "Save narrative"}
           </Button>
           {saved && !dirty && (
-            <span className="text-sm text-green-600">Saved.</span>
+            <span className="text-sm text-status-funded">Saved.</span>
           )}
           {dirty && (
             <span className="text-sm text-muted-foreground">
@@ -238,7 +238,7 @@ function NarrativeSection({
             </div>
           </div>
         )}
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
     </div>
   );
@@ -416,7 +416,7 @@ function ReportDocSlot({
       )}
 
       {busy && <p className="text-xs text-muted-foreground">Working…</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </li>
   );
 }

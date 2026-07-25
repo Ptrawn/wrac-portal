@@ -62,7 +62,7 @@ export function CommitteeReviewTile({
           {outstanding > 0 ? (
             <Badge
               variant="outline"
-              className="ml-auto border-amber-500/50 text-amber-600"
+              className="ml-auto border-status-review text-status-review"
             >
               {outstanding} outstanding
             </Badge>
@@ -103,7 +103,7 @@ export function CommitteeReviewTile({
                       {m.outstanding_count > 0 ? (
                         <Badge
                           variant="outline"
-                          className="border-amber-500/50 text-amber-600"
+                          className="border-status-review text-status-review"
                         >
                           {m.outstanding_count} left
                         </Badge>

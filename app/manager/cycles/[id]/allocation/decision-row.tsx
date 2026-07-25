@@ -81,10 +81,10 @@ export function DecisionRow({
       {/* Current decision */}
       <div className="text-sm">
         {row.outcome === "funded" ? (
-          <span className="font-medium text-green-600">
+          <span className="font-medium text-status-funded">
             Funded {formatBudget(row.funded_amount)}
             {differs && (
-              <span className="text-amber-600">
+              <span className="text-status-review">
                 {" "}
                 of {formatBudget(row.requested_amount)} requested
               </span>
@@ -149,7 +149,7 @@ export function DecisionRow({
         <CommentsButton proposalId={row.proposal_id} proposalTitle={row.title} />
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

@@ -145,7 +145,7 @@ export default async function AllocationPage({
               <div
                 className={
                   "text-3xl font-extrabold tabular-nums " +
-                  (overAllocated ? "text-destructive" : "text-green-600")
+                  (overAllocated ? "text-destructive" : "text-status-funded")
                 }
               >
                 {formatBudget(summary?.remaining ?? 0)}

@@ -68,7 +68,7 @@ export function CreatePreProposalForm({ cycleId }: { cycleId: string }) {
           onChange={(e) => setAmount(e.target.value)}
         />
       </div>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={isPending} className="w-fit">
         {isPending ? "Creating…" : "Create pre-proposal"}
       </Button>

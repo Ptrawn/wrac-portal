@@ -153,7 +153,7 @@ function QuestionRow({
             />
           </div>
         </div>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -232,7 +232,7 @@ function QuestionRow({
           </Button>
         </div>
       </div>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </li>
   );
 }
@@ -301,7 +301,7 @@ function AddQuestionForm({
           {isPending ? "Adding…" : "Add"}
         </Button>
       </div>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
   );
 }
@@ -400,8 +400,8 @@ function CopyFromCycle({
           </div>
         </div>
       )}
-      {message && <p className="text-sm text-green-600">{message}</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {message && <p className="text-sm text-status-funded">{message}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

@@ -84,7 +84,7 @@ export function CvUpload({
           required
         />
       </div>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={isUploading} className="w-fit">
         {isUploading ? "Uploading..." : cvPath ? "Replace CV" : "Upload CV"}
       </Button>

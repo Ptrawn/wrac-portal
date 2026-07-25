@@ -189,9 +189,9 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {saved && !error && (
-        <p className="text-sm text-green-600">Saved.</p>
+        <p className="text-sm text-status-funded">Saved.</p>
       )}
       <Button type="submit" disabled={isPending} className="w-fit">
         {isPending ? "Saving…" : "Save changes"}

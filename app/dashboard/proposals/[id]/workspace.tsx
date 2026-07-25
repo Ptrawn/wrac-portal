@@ -284,7 +284,7 @@ function EndProjectSection({ projectId }: { projectId: string }) {
           </div>
         </div>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }
@@ -404,8 +404,8 @@ function DetailsSection({
           />
         </div>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {saved && !error && <p className="text-sm text-green-600">Saved.</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {saved && !error && <p className="text-sm text-status-funded">Saved.</p>}
       <Button type="submit" size="sm" disabled={isPending} className="w-fit">
         {isPending ? "Saving…" : "Save details"}
       </Button>
@@ -618,8 +618,8 @@ function BudgetPlanSection({
 
       <p className="text-sm">Plan total: {formatBudget(total.toString())}</p>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {saved && !error && <p className="text-sm text-green-600">Plan saved.</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {saved && !error && <p className="text-sm text-status-funded">Plan saved.</p>}
       <Button size="sm" disabled={isPending} onClick={save} className="w-fit">
         {isPending ? "Saving…" : "Save plan"}
       </Button>
@@ -800,7 +800,7 @@ function DocumentSlot({
       )}
 
       {busy && <p className="text-xs text-muted-foreground">Working…</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </li>
   );
 }
@@ -853,7 +853,7 @@ function SubmitSection({
             <p className="text-sm font-medium">Due {submission.deadlineLong}</p>
           )}
           {!hasCv && (
-            <p className="text-sm text-red-500">
+            <p className="text-sm text-destructive">
               You have no CV on file. Upload one on your profile before
               submitting.
             </p>
@@ -894,7 +894,7 @@ function SubmitSection({
               </div>
             </div>
           )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </>
       )}
     </div>
@@ -959,7 +959,7 @@ function RescindSection({
           </div>
         </div>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

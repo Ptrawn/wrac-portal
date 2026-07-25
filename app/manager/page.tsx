@@ -63,7 +63,7 @@ function AttentionTile({
       <div
         className={
           "h-full rounded-lg border p-4 transition-colors hover:border-foreground/30 " +
-          (attention ? "border-amber-500/50 bg-amber-500/5" : "")
+          (attention ? "border-status-review" : "")
         }
       >
         <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -72,7 +72,7 @@ function AttentionTile({
         <div
           className={
             "text-3xl font-bold tabular-nums mt-1 " +
-            (attention ? "text-amber-600" : "")
+            (attention ? "text-status-review" : "")
           }
         >
           {value}
@@ -189,7 +189,7 @@ export default async function ManagerPage() {
           </CardHeader>
           <CardContent>
             {pendingError ? (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-destructive">
                 Couldn&apos;t load the queue: {pendingError.message}
               </p>
             ) : (
@@ -242,7 +242,7 @@ export default async function ManagerPage() {
                               overdue
                                 ? "text-destructive font-medium"
                                 : soon
-                                  ? "text-amber-600"
+                                  ? "text-status-review"
                                   : ""
                             }
                           >

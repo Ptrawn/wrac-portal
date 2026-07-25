@@ -49,7 +49,7 @@ export default async function CyclesPage() {
         </div>
 
         {error ? (
-          <p className="text-sm text-red-500">
+          <p className="text-sm text-destructive">
             Couldn&apos;t load cycles: {error.message}
           </p>
         ) : cycles.length === 0 ? (

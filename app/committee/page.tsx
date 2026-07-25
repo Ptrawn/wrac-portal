@@ -134,7 +134,7 @@ export default async function CommitteeQueuePage() {
                           overdue
                             ? "text-destructive font-medium"
                             : soon
-                              ? "text-amber-600"
+                              ? "text-status-review"
                               : "text-muted-foreground"
                         }
                       >
@@ -156,7 +156,7 @@ export default async function CommitteeQueuePage() {
                     {c.my_reviews_outstanding > 0 ? (
                       <Badge
                         variant="outline"
-                        className="border-amber-500/50 text-amber-600"
+                        className="border-status-review text-status-review"
                       >
                         {c.my_reviews_outstanding} outstanding
                       </Badge>

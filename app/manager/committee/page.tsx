@@ -62,7 +62,7 @@ export default async function CommitteePage() {
           </CardHeader>
           <CardContent>
             {error ? (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-destructive">
                 Couldn&apos;t load committee members: {error.message}
               </p>
             ) : members.length === 0 ? (

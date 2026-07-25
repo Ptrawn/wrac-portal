@@ -1,0 +1,108 @@
+/* ============================================================================
+   WA Wine design system — tokens (single source of truth for colour, type,
+   geometry, texture). Derived verbatim from docs/BRAND.md. Never hardcode a
+   hex in a component; reference these tokens (directly, or via the Tailwind
+   utilities wired in tailwind.config.ts / the shadcn bridge in globals.css).
+   ========================================================================== */
+
+:root {
+  /* --- Colour -------------------------------------------------------------- */
+  --wa-black: #000000; /* Rich Black — text, table header rules, inverse surfaces */
+  --wa-white: #ffffff; /* card surfaces */
+  --wa-red: #d1412b; /* PMS 179 — the ONLY accent: primary buttons, active nav, eyebrows */
+  --wa-grey: #4d4d4f; /* PMS 446 — secondary text, labels */
+  --wa-grey-light: #adafb1; /* Cool Grey 7 — borders/dividers/disabled, NEVER text */
+
+  /* Neutral surfaces — tints of Cool Grey 7, no new hue */
+  --surface-page: #f2f2f3;
+  --surface-card: #ffffff;
+  --surface-sunken: #e7e7e9;
+  --border: #d6d7d9;
+  --border-strong: #000000; /* black rules (table headers, emphasis) */
+
+  /* Text (grey-light never used as text — fails contrast) */
+  --text: #000000;
+  --text-secondary: #4d4d4f;
+  --text-muted: #4d4d4f;
+
+  /* --- Status ------------------------------------------------------------- */
+  --status-draft: #adafb1; /* Cool Grey 7 */
+  --status-submitted: #000000; /* Rich Black */
+  --status-review: #8a541f; /* PMS 153, Road Trip */
+  --status-funded: #5c6c22; /* PMS 583 (WAVE), darkened to 5.8:1 */
+  --status-declined: #d1412b; /* PMS 179 */
+  --wa-wave: #a0ba3e; /* true WAVE green — fill only (2.2:1), black text on it */
+  --wa-wave-ink: #5c6c22; /* darkened WAVE for use as text */
+
+  /* --- Type --------------------------------------------------------------- */
+  /* Arvo loaded via next/font as --font-arvo (see layout.tsx). */
+  --font-display: var(--font-arvo), Rockwell, "Roboto Slab", Georgia, serif;
+  --font-body: Arial, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  --font-data: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* Scale: 12 / 13 / 15 / 17 / 20 / 26 / 34 px, tuned dense */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 15px;
+  --fs-md: 17px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 34px;
+  --fs-3xl: 34px;
+
+  /* --- Geometry / elevation / motion -------------------------------------- */
+  --radius: 0; /* cards, tables, panels — hard edges */
+  --radius-sm: 2px; /* ceiling — buttons, inputs */
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.18); /* modals/dropdowns ONLY */
+  --dur: 140ms; /* functional motion, 120–160ms */
+
+  /* --- Texture ------------------------------------------------------------ */
+  /* Distressed grain — inline feTurbulence, no HTTP request, multiply @ 3.5%. */
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+/* Money / acreage / date figures — mono + tabular so columns align. */
+.num {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Topographic contour texture — atmosphere only (login, header/sidebar, empty
+   states, print headers). Painted on ::before at ~8% opacity; never behind
+   body copy, form fields or table rows. */
+.topo-dark,
+.topo-light {
+  position: relative;
+  isolation: isolate;
+}
+.topo-dark::before,
+.topo-light::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-repeat: repeat;
+  background-size: 480px 480px;
+  pointer-events: none;
+}
+.topo-dark::before {
+  background-image: url("/brand/texture-topo-dark.svg");
+  opacity: 0.1;
+}
+.topo-light::before {
+  background-image: url("/brand/texture-topo-light.svg");
+  opacity: 0.08;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

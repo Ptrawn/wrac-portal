@@ -134,7 +134,7 @@ export default async function ManagerProposalsPage({
         <ContinuationCandidates cycleId={cycleId} candidates={candidates} />
 
         {rowError ? (
-          <p className="text-sm text-red-500">
+          <p className="text-sm text-destructive">
             Couldn&apos;t load proposals: {rowError.message}
           </p>
         ) : rows.length === 0 ? (
@@ -175,7 +175,7 @@ export default async function ManagerProposalsPage({
                                   {overrideIds.has(r.proposal_id) && (
                                     <Badge
                                       variant="outline"
-                                      className="border-amber-500/50 text-amber-600"
+                                      className="border-status-review text-status-review"
                                     >
                                       Late submission allowed
                                     </Badge>

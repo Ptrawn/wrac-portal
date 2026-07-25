@@ -65,7 +65,7 @@ export function InviteCommitteeForm() {
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
-          <p className="text-xs text-red-500">
+          <p className="text-xs text-destructive">
             This is shown only once. Copy it now and deliver it to the member
             securely — you won&apos;t be able to see it again. They&apos;ll be
             asked to set a new password on first sign-in.
@@ -95,7 +95,7 @@ export function InviteCommitteeForm() {
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" size="sm" disabled={isPending} className="w-fit">
           {isPending ? "Inviting…" : "Invite committee member"}
         </Button>

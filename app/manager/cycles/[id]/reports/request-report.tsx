@@ -135,9 +135,9 @@ export function RequestReport({
         />
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {message && !error && (
-        <p className="text-sm text-green-600">{message}</p>
+        <p className="text-sm text-status-funded">{message}</p>
       )}
       <Button type="submit" size="sm" disabled={isPending} className="w-fit">
         {isPending ? "Creating…" : "Request report"}

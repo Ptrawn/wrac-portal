@@ -153,7 +153,7 @@ export function ReviewForm(props: Props) {
     return (
       <div className="text-sm text-muted-foreground">
         {ensureError ? (
-          <p className="text-red-500">{ensureError}</p>
+          <p className="text-destructive">{ensureError}</p>
         ) : (
           <p>{ensuring ? "Preparing your review…" : "Loading…"}</p>
         )}
@@ -249,8 +249,8 @@ export function ReviewForm(props: Props) {
         Total score so far: {enteredTotal} / {maxTotal}
       </p>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {saved && !error && <p className="text-sm text-green-600">Saved.</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {saved && !error && <p className="text-sm text-status-funded">Saved.</p>}
 
       {confirming ? (
         <div className="flex flex-col gap-2 text-sm">

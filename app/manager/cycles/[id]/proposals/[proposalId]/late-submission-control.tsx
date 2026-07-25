@@ -41,7 +41,7 @@ export function LateSubmissionControl({
           Late submission:{" "}
           <span
             className={
-              allowed ? "font-medium text-green-600" : "text-muted-foreground"
+              allowed ? "font-medium text-status-funded" : "text-muted-foreground"
             }
           >
             {allowed ? "Allowed" : "Not allowed"}
@@ -99,7 +99,7 @@ export function LateSubmissionControl({
         </p>
       )}
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

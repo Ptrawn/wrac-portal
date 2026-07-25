@@ -110,7 +110,7 @@ function CandidateRow({
       </div>
 
       {invited && (
-        <p className="text-sm text-green-600">
+        <p className="text-sm text-status-funded">
           Continuation draft created ·{" "}
           {newId ? (
             <Link
@@ -124,7 +124,7 @@ function CandidateRow({
           )}
         </p>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </li>
   );
 }
