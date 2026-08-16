@@ -49,23 +49,32 @@ export function ForgotPasswordForm({
       {success ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Check Your Email</CardTitle>
-            <CardDescription>Password reset instructions sent</CardDescription>
+            <CardTitle className="text-2xl">Check your email</CardTitle>
+            <CardDescription>
+              If an account exists for {email}, a reset link is on its way.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive
-              a password reset email.
+              Open the link in that email to choose a new password. It can only
+              be used once and expires after a short time, so use it soon. If it
+              hasn&apos;t arrived in a few minutes, check your spam folder.
             </p>
+            <Link
+              href="/auth/login"
+              className="text-sm text-center underline underline-offset-4"
+            >
+              Back to login
+            </Link>
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Reset Your Password</CardTitle>
+            <CardTitle className="text-2xl">Reset your password</CardTitle>
             <CardDescription>
-              Type in your email and we&apos;ll send you a link to reset your
-              password
+              Enter your email and we&apos;ll send you a link to set a new
+              password.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -88,12 +97,12 @@ export function ForgotPasswordForm({
                 </Button>
               </div>
               <div className="mt-4 text-center text-sm">
-                Already have an account?{" "}
+                Remembered it?{" "}
                 <Link
                   href="/auth/login"
                   className="underline underline-offset-4"
                 >
-                  Login
+                  Back to login
                 </Link>
               </div>
             </form>
