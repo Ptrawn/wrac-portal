@@ -372,7 +372,7 @@ begin
   select
     coalesce(sum(p.funded_amount - coalesce(p.arc_amount, 0)) filter (
       where p.outcome = 'funded' and p.type in ('full', 'continuation')), 0),
-    coalesce(sum(p.arc_amount) filter (
+    coalesce(sum(coalesce(p.arc_amount, 0)) filter (
       where p.outcome = 'funded' and p.type in ('full', 'continuation')), 0)
     into v_allocated, v_arc_alloc
   from public.proposals p
