@@ -278,6 +278,12 @@ export default async function ManagerProposalsPage({
                                   {s && s.reviews_in_progress > 0
                                     ? ` (${s.reviews_in_progress} in progress)`
                                     : ""}
+                                  {s && s.declined_count > 0 && (
+                                    <span className="text-status-review">
+                                      {" "}
+                                      · {s.declined_count} declined
+                                    </span>
+                                  )}
                                 </span>
                                 <span>
                                   Total {s ? Number(s.total_score ?? 0) : 0} /{" "}

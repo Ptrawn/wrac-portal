@@ -27,6 +27,9 @@ export async function setFundingDecision(
   // the RPC for non-WSU proposals; the RPC raises if it exceeds the ARC-eligible
   // ceiling or the funded amount. Defaults to 0 (no ARC) when omitted.
   arcAmount: number | null = 0,
+  // Manager's reasoning for the decision -- especially why an award came in
+  // below the request. Stored when funding, nulled when not funded.
+  fundingNote: string | null = null,
 ): Promise<{ error?: string; ok?: boolean }> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_funding_decision", {
@@ -34,6 +37,7 @@ export async function setFundingDecision(
     p_funded: funded,
     p_amount: amount,
     p_arc_amount: arcAmount ?? 0,
+    p_funding_note: fundingNote,
   });
   if (error) return { error: friendly(error.message) };
   revalidate(cycleId);

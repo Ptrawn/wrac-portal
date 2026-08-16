@@ -88,6 +88,77 @@ export async function setLateSubmission(
   return { ok: true };
 }
 
+/**
+ * Undo an accidental rescind. The RPC restores the proposal to 'submitted' if it
+ * had been submitted before (submitted_at is set), otherwise to 'draft'.
+ */
+export async function unrescindProposal(
+  cycleId: string,
+  proposalId: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unrescind_proposal", { p_id: proposalId });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId, proposalId);
+  return { ok: true };
+}
+
+/**
+ * Reverse an accidental end_project: back to 'active' if the project has any
+ * funded proposal, else 'proposed'; ended_at / ended_reason cleared.
+ */
+export async function unendProject(
+  cycleId: string,
+  proposalId: string,
+  projectId: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unend_project", {
+    p_project_id: projectId,
+  });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId, proposalId);
+  return { ok: true };
+}
+
+/**
+ * Grant a no-cost extension: additional TIME to complete the funded work, with
+ * NO additional funding. It deliberately does not change planned_years or
+ * status, so it never makes the project eligible for another funded year.
+ */
+export async function grantNoCostExtension(
+  cycleId: string,
+  proposalId: string,
+  projectId: string,
+  reason: string,
+  extendedTo: string | null,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("grant_no_cost_extension", {
+    p_project_id: projectId,
+    p_reason: reason,
+    p_extended_to: extendedTo,
+  });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId, proposalId);
+  return { ok: true };
+}
+
+/** Clear a no-cost extension (all four nce_* fields). */
+export async function revokeNoCostExtension(
+  cycleId: string,
+  proposalId: string,
+  projectId: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("revoke_no_cost_extension", {
+    p_project_id: projectId,
+  });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId, proposalId);
+  return { ok: true };
+}
+
 export async function reopenReviewAction(
   cycleId: string,
   proposalId: string,

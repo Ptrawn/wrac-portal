@@ -23,6 +23,8 @@ export type Proposal = {
   wsu_wages: number | string | null;
   wsu_wage_benefits: number | string | null;
   arc_amount: number | string | null;
+  // Manager's note on the funding decision (esp. why funded below request).
+  funding_note: string | null;
   cv_snapshot_path: string | null;
   late_submission_allowed: boolean;
   submitted_at: string | null;
@@ -38,6 +40,15 @@ export type Project = {
   title: string;
   planned_years: number;
   status: string;
+  ended_at: string | null;
+  ended_reason: string | null;
+  final_report_required: boolean;
+  // No-cost extension: extra TIME to finish, never extra money and never an
+  // entitlement to another funded year (planned_years is deliberately untouched).
+  nce_granted: boolean;
+  nce_granted_at: string | null;
+  nce_reason: string | null;
+  nce_extended_to: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -50,6 +50,9 @@ export type ProposalReviewSummary = {
   proposal_id: string;
   reviews_submitted: number;
   reviews_in_progress: number;
+  // How many committee members answered the participation gate with "decline".
+  // They're excluded from this proposal's total AND its max_possible.
+  declined_count: number;
   total_score: number | string | null;
   average_score: number | string | null;
   max_possible: number | string | null;

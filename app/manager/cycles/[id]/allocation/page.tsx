@@ -25,6 +25,7 @@ type WsuRow = {
   serial_number: string | null;
   is_wsu: boolean;
   arc_amount: number | string | null;
+  funding_note: string | null;
   wsu_salary: number | string | null;
   wsu_salary_benefits: number | string | null;
   wsu_wages: number | string | null;
@@ -84,7 +85,7 @@ export default async function AllocationPage({
   const { data: wsuData } = await supabase
     .from("proposals")
     .select(
-      "id, serial_number, is_wsu, arc_amount, wsu_salary, wsu_salary_benefits, wsu_wages, wsu_wage_benefits",
+      "id, serial_number, is_wsu, arc_amount, funding_note, wsu_salary, wsu_salary_benefits, wsu_wages, wsu_wage_benefits",
     )
     .eq("cycle_id", cycleId);
   const wsuByProposal = new Map(
@@ -114,8 +115,10 @@ export default async function AllocationPage({
           total_score: s?.total_score ?? null,
           average_score: s?.average_score ?? null,
           reviews_submitted: s?.reviews_submitted ?? 0,
+          declined_count: s?.declined_count ?? 0,
           is_wsu: w?.is_wsu ?? false,
           arc_amount: w?.arc_amount ?? null,
+          funding_note: w?.funding_note ?? null,
           arc_ceiling: w
             ? arcEligibleTotal({
                 wsu_salary: w.wsu_salary,

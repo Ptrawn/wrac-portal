@@ -26,8 +26,10 @@ import { SerialTag } from "@/components/serial-tag";
 import { loadProjectReportingHistory } from "@/lib/reports";
 import { ProposalDecisions } from "./proposal-decisions";
 import { ManagerDocs } from "./manager-docs";
+import { ProjectControls } from "./project-controls";
 import { ReopenReviewButton } from "./reopen-review-button";
 import { LateSubmissionControl } from "./late-submission-control";
+import { UnrescindControl } from "./unrescind-control";
 
 type DetailProposal = {
   id: string;
@@ -40,12 +42,24 @@ type DetailProposal = {
   year_number: number;
   requested_amount: number | string | null;
   funded_amount: number | string | null;
+  funding_note: string | null;
+  submitted_at: string | null;
   serial_number: string | null;
   parent_proposal_id: string | null;
   cv_snapshot_path: string | null;
   late_submission_allowed: boolean;
   researcher: { full_name: string | null; institution: string | null } | null;
-  project: { title: string; planned_years: number } | null;
+  project: {
+    title: string;
+    planned_years: number;
+    status: string;
+    ended_at: string | null;
+    ended_reason: string | null;
+    nce_granted: boolean;
+    nce_granted_at: string | null;
+    nce_reason: string | null;
+    nce_extended_to: string | null;
+  } | null;
   cycle: { name: string; year: number } | null;
 };
 
@@ -72,7 +86,7 @@ export default async function ManagerProposalDetailPage({
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, state, outcome, cycle_id, project_id, year_number, requested_amount, funded_amount, serial_number, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years), cycle:cycles(name, year)",
+      "id, title, type, state, outcome, cycle_id, project_id, year_number, requested_amount, funded_amount, funding_note, submitted_at, serial_number, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years, status, ended_at, ended_reason, nce_granted, nce_granted_at, nce_reason, nce_extended_to), cycle:cycles(name, year)",
     )
     .eq("id", proposalId)
     .maybeSingle();
@@ -162,6 +176,16 @@ export default async function ManagerProposalDetailPage({
   // Full reporting history for the project (all years), for deliberation context.
   const reportHistory = await loadProjectReportingHistory(proposal.project_id);
 
+  const requestedNum =
+    proposal.requested_amount == null ? null : Number(proposal.requested_amount);
+  const fundedNum =
+    proposal.funded_amount == null ? null : Number(proposal.funded_amount);
+  const belowRequest =
+    proposal.outcome === "funded" &&
+    fundedNum != null &&
+    requestedNum != null &&
+    fundedNum < requestedNum;
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       <AppHeader email={email} />
@@ -224,7 +248,24 @@ export default async function ManagerProposalDetailPage({
               {proposal.funded_amount != null && (
                 <>
                   <span className="text-muted-foreground">Funded amount</span>
-                  <span>{formatBudget(proposal.funded_amount)}</span>
+                  <span>
+                    {formatBudget(proposal.funded_amount)}
+                    {belowRequest && (
+                      <span className="text-status-review">
+                        {" "}
+                        (below the {formatBudget(proposal.requested_amount)}{" "}
+                        requested)
+                      </span>
+                    )}
+                  </span>
+                </>
+              )}
+              {proposal.funding_note && (
+                <>
+                  <span className="text-muted-foreground">Funding note</span>
+                  <span className="whitespace-pre-wrap">
+                    {proposal.funding_note}
+                  </span>
                 </>
               )}
             </div>
@@ -265,6 +306,47 @@ export default async function ManagerProposalDetailPage({
             )}
           </CardContent>
         </Card>
+
+        {/* Rescinded -> undo (manager correction) */}
+        {proposal.state === "rescinded" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Rescinded</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <UnrescindControl
+                cycleId={cycleId}
+                proposalId={proposal.id}
+                wasSubmitted={proposal.submitted_at != null}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Project-level controls (un-end, no-cost extension) */}
+        {proposal.project && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Project</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ProjectControls
+                cycleId={cycleId}
+                proposalId={proposal.id}
+                projectId={proposal.project_id}
+                projectTitle={proposal.project.title}
+                status={proposal.project.status}
+                plannedYears={proposal.project.planned_years}
+                endedAt={proposal.project.ended_at}
+                endedReason={proposal.project.ended_reason}
+                nceGranted={proposal.project.nce_granted}
+                nceGrantedAt={proposal.project.nce_granted_at}
+                nceReason={proposal.project.nce_reason}
+                nceExtendedTo={proposal.project.nce_extended_to}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Project reporting history (all years) */}
         <ProjectReportingHistory reports={reportHistory} />

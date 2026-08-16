@@ -23,9 +23,11 @@ type Row = {
   total_score: number | string | null;
   average_score: number | string | null;
   reviews_submitted: number;
+  declined_count: number;
   is_wsu: boolean;
   arc_amount: number | string | null;
   arc_ceiling: number;
+  funding_note: string | null;
 };
 
 export function DecisionRow({
@@ -49,6 +51,10 @@ export function DecisionRow({
   const [arc, setArc] = useState<string>(
     row.is_wsu && row.arc_amount != null ? String(row.arc_amount) : "0",
   );
+  // Manager's reasoning for the decision. Pre-filled from the saved note so a
+  // re-decision doesn't silently drop it.
+  const [note, setNote] = useState<string>(row.funding_note ?? "");
+  const [showNote, setShowNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -75,6 +81,19 @@ export function DecisionRow({
   const savedPoolDraw =
     fundedNum == null ? 0 : Math.max(0, fundedNum - savedArc);
 
+  // Live check against what's typed in the amount box: when the manager is about
+  // to fund below the request, the note is prompted (never hard-required).
+  const typedAmount = amount.trim() === "" ? null : Number(amount);
+  const wouldBeBelowRequest =
+    typedAmount != null &&
+    !Number.isNaN(typedAmount) &&
+    requestedNum != null &&
+    typedAmount < requestedNum;
+
+  // The note field shows automatically for a below-request award or when one is
+  // already saved; otherwise it's behind a small "add a note" toggle.
+  const noteVisible = wouldBeBelowRequest || showNote || note !== "";
+
   const fund = () =>
     run(() =>
       setFundingDecision(
@@ -83,6 +102,7 @@ export function DecisionRow({
         true,
         amount.trim() === "" ? null : Number(amount),
         row.is_wsu ? (arc.trim() === "" ? 0 : Number(arc)) : 0,
+        note.trim() === "" ? null : note.trim(),
       ),
     );
 
@@ -109,6 +129,12 @@ export function DecisionRow({
           <div className="text-muted-foreground text-xs">
             Score {row.total_score == null ? 0 : Number(row.total_score)} · avg{" "}
             {formatAverage(row.average_score)} · {row.reviews_submitted} reviews
+            {row.declined_count > 0 && (
+              <span className="text-status-review">
+                {" "}
+                · {row.declined_count} declined
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -143,6 +169,11 @@ export function DecisionRow({
           <span className="font-medium text-muted-foreground">Declined</span>
         ) : (
           <span className="text-muted-foreground">Undecided</span>
+        )}
+        {row.funding_note && (
+          <div className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+            <span className="font-medium">Note:</span> {row.funding_note}
+          </div>
         )}
       </div>
 
@@ -219,6 +250,58 @@ export function DecisionRow({
         )}
         <CommentsButton proposalId={row.proposal_id} proposalTitle={row.title} />
       </div>
+
+      {/* Funding note. Always available; auto-revealed and emphasised when the
+          typed amount is below the request. Never hard-required. */}
+      {noteVisible ? (
+        <div
+          className={
+            "flex flex-col gap-1 rounded-md p-2 " +
+            (wouldBeBelowRequest
+              ? "border border-status-review/40 bg-status-review/5"
+              : "border")
+          }
+        >
+          <label
+            htmlFor={`note-${row.proposal_id}`}
+            className={
+              "text-xs " +
+              (wouldBeBelowRequest
+                ? "font-medium text-status-review"
+                : "text-muted-foreground")
+            }
+          >
+            {wouldBeBelowRequest
+              ? "Why was this funded below the request?"
+              : "Funding note (optional)"}
+          </label>
+          <textarea
+            id={`note-${row.proposal_id}`}
+            className="flex min-h-14 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            placeholder={
+              wouldBeBelowRequest
+                ? "e.g. Scaled to the available pool; equipment line deferred to year 2."
+                : "Reasoning for this decision (optional)"
+            }
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <span className="text-[10px] text-muted-foreground">
+            Saved with the decision when you press Fund.
+            {wouldBeBelowRequest
+              ? " Expected for a below-request award, but not required."
+              : ""}
+          </span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="text-xs text-muted-foreground underline underline-offset-4 w-fit"
+          onClick={() => setShowNote(true)}
+        >
+          Add a funding note (optional)
+        </button>
+      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
