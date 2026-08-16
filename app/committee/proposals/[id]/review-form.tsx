@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { describeAnswerScore } from "@/lib/reviews";
 import { ensureReview, saveReviewAnswers, submitReview } from "../../actions";
 
 type Question = {
   id: string;
   prompt: string;
+  question_type: string;
   score_min: number;
   score_max: number;
 };
@@ -182,10 +184,27 @@ export function ReviewForm(props: Props) {
             <li key={q.id} className="flex flex-col gap-1 text-sm">
               <span className="font-medium">{q.prompt}</span>
               <span>
-                Score: {drafts[q.id]?.score === "" ? "—" : drafts[q.id]?.score}{" "}
-                <span className="text-muted-foreground">
-                  ({q.score_min}–{q.score_max})
-                </span>
+                {q.question_type === "yes_no" ? (
+                  <>
+                    Answer:{" "}
+                    {drafts[q.id]?.score === ""
+                      ? "—"
+                      : describeAnswerScore(
+                          q.question_type,
+                          Number(drafts[q.id]?.score),
+                          q.score_min,
+                          q.score_max,
+                        )}
+                  </>
+                ) : (
+                  <>
+                    Score:{" "}
+                    {drafts[q.id]?.score === "" ? "—" : drafts[q.id]?.score}{" "}
+                    <span className="text-muted-foreground">
+                      ({q.score_min}–{q.score_max})
+                    </span>
+                  </>
+                )}
               </span>
               {drafts[q.id]?.comment && (
                 <span className="text-muted-foreground whitespace-pre-wrap">
@@ -215,21 +234,55 @@ export function ReviewForm(props: Props) {
         {questions.map((q) => (
           <li key={q.id} className="flex flex-col gap-2">
             <span className="text-sm font-medium">{q.prompt}</span>
-            <div className="grid gap-1">
-              <Label htmlFor={`score-${q.id}`} className="text-xs">
-                Score ({q.score_min}–{q.score_max})
-              </Label>
-              <Input
-                id={`score-${q.id}`}
-                type="number"
-                min={q.score_min}
-                max={q.score_max}
-                step={1}
-                className="w-28"
-                value={drafts[q.id]?.score ?? ""}
-                onChange={(e) => setField(q.id, "score", e.target.value)}
-              />
-            </div>
+            {q.question_type === "yes_no" ? (
+              // Yes/No: two explicit choices. "Yes" stores the question's points,
+              // "No" stores 0 -- the DB trigger accepts nothing in between.
+              <div className="grid gap-1">
+                <Label className="text-xs">
+                  Answer{" "}
+                  <span className="text-muted-foreground">
+                    (Yes = {q.score_max} point{q.score_max === 1 ? "" : "s"}, No
+                    = 0)
+                  </span>
+                </Label>
+                <div className="flex gap-2">
+                  {[
+                    { label: "Yes", value: String(q.score_max) },
+                    { label: "No", value: "0" },
+                  ].map((choice) => {
+                    const selected = drafts[q.id]?.score === choice.value;
+                    return (
+                      <Button
+                        key={choice.label}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        aria-pressed={selected}
+                        onClick={() => setField(q.id, "score", choice.value)}
+                      >
+                        {choice.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-1">
+                <Label htmlFor={`score-${q.id}`} className="text-xs">
+                  Score ({q.score_min}–{q.score_max})
+                </Label>
+                <Input
+                  id={`score-${q.id}`}
+                  type="number"
+                  min={q.score_min}
+                  max={q.score_max}
+                  step={1}
+                  className="w-28"
+                  value={drafts[q.id]?.score ?? ""}
+                  onChange={(e) => setField(q.id, "score", e.target.value)}
+                />
+              </div>
+            )}
             <div className="grid gap-1">
               <Label htmlFor={`comment-${q.id}`} className="text-xs">
                 Comment

@@ -17,6 +17,7 @@ import {
   type ProposalDocument,
 } from "@/lib/proposals";
 import {
+  describeAnswerScore,
   outcomeLabel,
   reviewStatusLabel,
   stageForProposalType,
@@ -441,10 +442,15 @@ export default async function ManagerProposalDetailPage({
                                   {q.prompt}
                                 </span>
                                 <span>
-                                  Score: {a?.score ?? "—"}{" "}
-                                  <span className="text-muted-foreground">
-                                    ({q.score_min}–{q.score_max})
-                                  </span>
+                                  {q.question_type === "yes_no"
+                                    ? "Answer: "
+                                    : "Score: "}
+                                  {describeAnswerScore(
+                                    q.question_type,
+                                    a?.score,
+                                    q.score_min,
+                                    q.score_max,
+                                  )}
                                 </span>
                                 {a?.comment && (
                                   <span className="whitespace-pre-wrap">

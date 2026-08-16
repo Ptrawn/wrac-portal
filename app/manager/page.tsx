@@ -225,7 +225,12 @@ export default async function ManagerPage() {
         {/* Pending registrations queue — the strong existing affordance */}
         <Card id="pending" className="scroll-mt-4">
           <CardHeader>
-            <CardTitle className="text-xl">Pending registrations</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-xl">Pending registrations</CardTitle>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/manager/researchers">All researchers</Link>
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {pendingError ? (

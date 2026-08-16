@@ -10,6 +10,7 @@ import { ReviewForm } from "./review-form";
 type Question = {
   id: string;
   prompt: string;
+  question_type: string;
   score_min: number;
   score_max: number;
 };

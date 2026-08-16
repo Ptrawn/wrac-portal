@@ -290,6 +290,7 @@ export default async function ReviewWorkspacePage({
               questions={questions.map((q) => ({
                 id: q.id,
                 prompt: q.prompt,
+                question_type: q.question_type,
                 score_min: q.score_min,
                 score_max: q.score_max,
               }))}

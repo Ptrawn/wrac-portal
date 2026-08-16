@@ -5,7 +5,8 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ReviewQuestion, ReviewStage } from "@/lib/cycles";
+import type { QuestionType, ReviewQuestion, ReviewStage } from "@/lib/cycles";
+import { questionScoringLabel } from "@/lib/reviews";
 import {
   addQuestion,
   copyQuestionsFromCycle,
@@ -100,6 +101,9 @@ function QuestionRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [prompt, setPrompt] = useState(question.prompt);
+  const [questionType, setQuestionType] = useState<QuestionType>(
+    question.question_type,
+  );
   const [scoreMin, setScoreMin] = useState(String(question.score_min));
   const [scoreMax, setScoreMax] = useState(String(question.score_max));
   const [error, setError] = useState<string | null>(null);
@@ -116,11 +120,14 @@ function QuestionRow({
 
   const resetEdit = () => {
     setPrompt(question.prompt);
+    setQuestionType(question.question_type);
     setScoreMin(String(question.score_min));
     setScoreMax(String(question.score_max));
     setError(null);
     setEditing(false);
   };
+
+  const isYesNo = questionType === "yes_no";
 
   if (editing) {
     return (
@@ -133,26 +140,49 @@ function QuestionRow({
             required
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-end">
           <div className="grid gap-1">
-            <Label className="text-xs">Min</Label>
-            <Input
-              type="number"
-              className="w-20"
-              value={scoreMin}
-              onChange={(e) => setScoreMin(e.target.value)}
-            />
+            <Label className="text-xs">Answer type</Label>
+            <select
+              aria-label="Answer type"
+              value={questionType}
+              onChange={(e) => setQuestionType(e.target.value as QuestionType)}
+              className="border rounded-md h-9 px-2 text-sm bg-background"
+            >
+              <option value="numeric">Numeric score</option>
+              <option value="yes_no">Yes / No</option>
+            </select>
           </div>
+          {!isYesNo && (
+            <div className="grid gap-1">
+              <Label className="text-xs">Min</Label>
+              <Input
+                type="number"
+                className="w-20"
+                value={scoreMin}
+                onChange={(e) => setScoreMin(e.target.value)}
+              />
+            </div>
+          )}
           <div className="grid gap-1">
-            <Label className="text-xs">Max</Label>
+            <Label className="text-xs">
+              {isYesNo ? "Points for a Yes" : "Max"}
+            </Label>
             <Input
               type="number"
-              className="w-20"
+              min={isYesNo ? 1 : undefined}
+              className="w-28"
               value={scoreMax}
               onChange={(e) => setScoreMax(e.target.value)}
             />
           </div>
         </div>
+        {isYesNo && (
+          <p className="text-xs text-muted-foreground">
+            A “no” is always worth 0. Scoring can&apos;t be changed once
+            reviewers have answered this question.
+          </p>
+        )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex gap-2">
           <Button
@@ -163,7 +193,8 @@ function QuestionRow({
                 () =>
                   updateQuestion(question.id, cycleId, {
                     prompt: prompt.trim(),
-                    score_min: Number(scoreMin),
+                    question_type: questionType,
+                    score_min: isYesNo ? 0 : Number(scoreMin),
                     score_max: Number(scoreMax),
                   }),
                 () => setEditing(false),
@@ -186,7 +217,13 @@ function QuestionRow({
         <div className="text-sm">
           {question.prompt}{" "}
           <span className="text-muted-foreground">
-            ({question.score_min}–{question.score_max})
+            (
+            {questionScoringLabel(
+              question.question_type,
+              question.score_min,
+              question.score_max,
+            )}
+            )
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -245,10 +282,13 @@ function AddQuestionForm({
   stage: ReviewStage;
 }) {
   const [prompt, setPrompt] = useState("");
+  const [questionType, setQuestionType] = useState<QuestionType>("numeric");
   const [scoreMin, setScoreMin] = useState("0");
   const [scoreMax, setScoreMax] = useState("10");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const isYesNo = questionType === "yes_no";
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,13 +296,15 @@ function AddQuestionForm({
     startTransition(async () => {
       const res = await addQuestion(cycleId, stage, {
         prompt: prompt.trim(),
-        score_min: Number(scoreMin),
+        question_type: questionType,
+        score_min: isYesNo ? 0 : Number(scoreMin),
         score_max: Number(scoreMax),
       });
       if (res?.error) {
         setError(res.error);
       } else {
         setPrompt("");
+        setQuestionType("numeric");
         setScoreMin("0");
         setScoreMax("10");
       }
@@ -278,21 +320,48 @@ function AddQuestionForm({
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
       />
-      <div className="flex gap-2 items-end">
+      <div className="flex flex-wrap gap-2 items-end">
         <div className="grid gap-1">
-          <Label className="text-xs">Min</Label>
-          <Input
-            type="number"
-            className="w-20"
-            value={scoreMin}
-            onChange={(e) => setScoreMin(e.target.value)}
-          />
+          <Label className="text-xs">Answer type</Label>
+          <select
+            aria-label="Answer type"
+            value={questionType}
+            onChange={(e) => {
+              const next = e.target.value as QuestionType;
+              setQuestionType(next);
+              // A yes/no question is 0..points-for-yes; seed a sensible value.
+              if (next === "yes_no") {
+                setScoreMin("0");
+                setScoreMax("1");
+              } else {
+                setScoreMax("10");
+              }
+            }}
+            className="border rounded-md h-9 px-2 text-sm bg-background"
+          >
+            <option value="numeric">Numeric score</option>
+            <option value="yes_no">Yes / No</option>
+          </select>
         </div>
+        {!isYesNo && (
+          <div className="grid gap-1">
+            <Label className="text-xs">Min</Label>
+            <Input
+              type="number"
+              className="w-20"
+              value={scoreMin}
+              onChange={(e) => setScoreMin(e.target.value)}
+            />
+          </div>
+        )}
         <div className="grid gap-1">
-          <Label className="text-xs">Max</Label>
+          <Label className="text-xs">
+            {isYesNo ? "Points for a Yes" : "Max"}
+          </Label>
           <Input
             type="number"
-            className="w-20"
+            min={isYesNo ? 1 : undefined}
+            className="w-28"
             value={scoreMax}
             onChange={(e) => setScoreMax(e.target.value)}
           />
@@ -301,6 +370,12 @@ function AddQuestionForm({
           {isPending ? "Adding…" : "Add"}
         </Button>
       </div>
+      {isYesNo && (
+        <p className="text-xs text-muted-foreground">
+          Reviewers answer Yes or No. A “yes” scores the points above; a “no”
+          scores 0.
+        </p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
   );

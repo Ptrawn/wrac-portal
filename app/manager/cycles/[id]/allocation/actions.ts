@@ -82,6 +82,7 @@ export type CommentReview = {
   total: number;
   answers: {
     prompt: string;
+    questionType: string;
     score: number | null;
     comment: string | null;
     min: number;
@@ -110,7 +111,7 @@ export async function getProposalReviews(
   const stage = stageForProposalType(proposal.type);
   const { data: questionData } = await supabase
     .from("review_questions")
-    .select("id, prompt, score_min, score_max")
+    .select("id, prompt, question_type, score_min, score_max")
     .eq("cycle_id", proposal.cycle_id)
     .eq("stage", stage)
     .eq("is_active", true)
@@ -119,6 +120,7 @@ export async function getProposalReviews(
     (questionData as {
       id: string;
       prompt: string;
+      question_type: string;
       score_min: number;
       score_max: number;
     }[] | null) ?? [];
@@ -166,6 +168,7 @@ export async function getProposalReviews(
         const a = answers.get(q.id);
         return {
           prompt: q.prompt,
+          questionType: q.question_type,
           score: a?.score ?? null,
           comment: a?.comment ?? null,
           min: q.score_min,

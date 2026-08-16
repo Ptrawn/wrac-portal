@@ -32,11 +32,16 @@ export type Cycle = {
 
 export type ReviewStage = "pre" | "full";
 
+export type QuestionType = "numeric" | "yes_no";
+
 export type ReviewQuestion = {
   id: string;
   cycle_id: string;
   stage: ReviewStage;
   prompt: string;
+  // 'yes_no' questions pin score_min to 0 and store score_max for "yes", 0 for
+  // "no" -- an ordinary score, so every roll-up works unchanged.
+  question_type: QuestionType;
   score_min: number;
   score_max: number;
   sort_order: number;

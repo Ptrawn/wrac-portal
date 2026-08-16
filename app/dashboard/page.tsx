@@ -88,6 +88,80 @@ function stateBadgeVariant(
   }
 }
 
+/** One proposal row, shared by the pre-proposal and full-proposal lists. */
+function ProposalRow({
+  p,
+  submissionClosed,
+}: {
+  p: ProposalWithCycle;
+  submissionClosed: boolean;
+}) {
+  return (
+    <li>
+      <Link href={`/dashboard/proposals/${p.id}`}>
+        <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 min-w-0">
+              {p.serial_number && (
+                <SerialTag
+                  serialNumber={p.serial_number}
+                  outcome={p.outcome}
+                />
+              )}
+              <span className="font-medium text-sm truncate">{p.title}</span>
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {p.type === "continuation" && (
+                <Badge variant="outline">Continuation</Badge>
+              )}
+              {p.type === "off_cycle" && (
+                <Badge variant="outline">Off-cycle</Badge>
+              )}
+              {p.project?.final_report_required && (
+                <Badge
+                  variant="outline"
+                  className="text-destructive border-destructive/40"
+                >
+                  Final report required
+                </Badge>
+              )}
+              {p.project?.status === "ended" && (
+                <Badge variant="outline">Project ended</Badge>
+              )}
+              {submissionClosed && (
+                <Badge
+                  variant="outline"
+                  className="text-destructive border-destructive/40"
+                >
+                  Submission closed
+                </Badge>
+              )}
+              <Badge variant={stateBadgeVariant(p.state)}>
+                {proposalStateLabel(p.state)}
+              </Badge>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+            <span>{p.cycle ? `${p.cycle.name} (${p.cycle.year})` : "—"}</span>
+            <span>{proposalTypeLabel(p.type)}</span>
+            {p.type === "continuation" && p.project && (
+              <span>
+                Year {p.year_number} of {p.project.planned_years}
+              </span>
+            )}
+            {p.requested_amount != null && (
+              <span>Requested {formatBudget(p.requested_amount)}</span>
+            )}
+            {p.submitted_at && (
+              <span>Submitted {formatDate(p.submitted_at.slice(0, 10))}</span>
+            )}
+          </div>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
 export default async function DashboardPage() {
   const { email, profile } = await requireApprovedResearcher();
 
@@ -107,6 +181,11 @@ export default async function DashboardPage() {
     )
     .order("created_at", { ascending: false });
   const proposals = (proposalData as ProposalWithCycle[] | null) ?? [];
+  // Two lists: pre-proposals, and everything that is a full submission
+  // (full proposals, continuation requests, off-cycle) -- each row labels its
+  // own type so a continuation reads clearly within the full-proposal list.
+  const preProposals = proposals.filter((p) => p.type === "pre");
+  const fullProposals = proposals.filter((p) => p.type !== "pre");
   const pacificToday = pacificDateToday();
 
   // Reports the researcher owns (RLS scopes to their own projects).
@@ -244,77 +323,53 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">My proposals</CardTitle>
+            <CardTitle className="text-xl">My pre-proposals</CardTitle>
+            <CardDescription>
+              First-stage submissions. A pre-proposal that advances becomes a
+              full proposal.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {proposals.length === 0 ? (
+            {preProposals.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                You haven&apos;t started any proposals yet.
+                You haven&apos;t started any pre-proposals yet.
               </p>
             ) : (
               <ul className="flex flex-col gap-3">
-                {proposals.map((p) => (
-                  <li key={p.id}>
-                    <Link href={`/dashboard/proposals/${p.id}`}>
-                      <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="flex items-center gap-2 min-w-0">
-                            {p.serial_number && (
-                              <SerialTag
-                                serialNumber={p.serial_number}
-                                outcome={p.outcome}
-                              />
-                            )}
-                            <span className="font-medium text-sm truncate">
-                              {p.title}
-                            </span>
-                          </span>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {p.project?.final_report_required && (
-                              <Badge
-                                variant="outline"
-                                className="text-destructive border-destructive/40"
-                              >
-                                Final report required
-                              </Badge>
-                            )}
-                            {p.project?.status === "ended" && (
-                              <Badge variant="outline">Project ended</Badge>
-                            )}
-                            {submissionClosed(p) && (
-                              <Badge variant="outline" className="text-destructive border-destructive/40">
-                                Submission closed
-                              </Badge>
-                            )}
-                            <Badge variant={stateBadgeVariant(p.state)}>
-                              {proposalStateLabel(p.state)}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                          <span>
-                            {p.cycle
-                              ? `${p.cycle.name} (${p.cycle.year})`
-                              : "—"}
-                          </span>
-                          <span>{proposalTypeLabel(p.type)}</span>
-                          {p.type === "continuation" && p.project && (
-                            <span>
-                              Year {p.year_number} of {p.project.planned_years}
-                            </span>
-                          )}
-                          {p.requested_amount != null && (
-                            <span>Requested {formatBudget(p.requested_amount)}</span>
-                          )}
-                          {p.submitted_at && (
-                            <span>
-                              Submitted {formatDate(p.submitted_at.slice(0, 10))}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  </li>
+                {preProposals.map((p) => (
+                  <ProposalRow
+                    key={p.id}
+                    p={p}
+                    submissionClosed={submissionClosed(p)}
+                  />
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">My full proposals</CardTitle>
+            <CardDescription>
+              Full proposals, continuation requests for ongoing projects, and any
+              off-cycle submissions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {fullProposals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                You don&apos;t have any full proposals yet. They appear here once
+                the manager invites you to submit one.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {fullProposals.map((p) => (
+                  <ProposalRow
+                    key={p.id}
+                    p={p}
+                    submissionClosed={submissionClosed(p)}
+                  />
                 ))}
               </ul>
             )}

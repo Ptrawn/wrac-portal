@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { reviewStatusLabel } from "@/lib/reviews";
+import { describeAnswerScore, reviewStatusLabel } from "@/lib/reviews";
 import { getProposalReviews, type CommentReview } from "./actions";
 
 export function CommentsButton({
@@ -94,10 +94,15 @@ export function CommentsButton({
                             {a.prompt}
                           </span>
                           <span>
-                            Score: {a.score ?? "—"}{" "}
-                            <span className="text-muted-foreground">
-                              ({a.min}–{a.max})
-                            </span>
+                            {a.questionType === "yes_no"
+                              ? "Answer: "
+                              : "Score: "}
+                            {describeAnswerScore(
+                              a.questionType,
+                              a.score,
+                              a.min,
+                              a.max,
+                            )}
                           </span>
                           {a.comment && (
                             <span className="whitespace-pre-wrap">

@@ -178,3 +178,33 @@ export function reportStateLabel(state: string): string {
 export function isReviewEditable(state: string | null | undefined): boolean {
   return state !== "submitted";
 }
+
+/**
+ * How a stored answer score reads to a human. A yes/no answer is stored as the
+ * question's score_max ("yes") or 0 ("no"), so it must be rendered as Yes/No
+ * with its points rather than as a bare number. Numeric answers render as the
+ * number with the question's range, as before. Null = not answered.
+ */
+export function describeAnswerScore(
+  questionType: string | null | undefined,
+  score: number | null | undefined,
+  scoreMin: number,
+  scoreMax: number,
+): string {
+  if (score === null || score === undefined) return "—";
+  if (questionType === "yes_no") {
+    return score === scoreMax ? `Yes (${scoreMax})` : `No (0)`;
+  }
+  return `${score} (${scoreMin}–${scoreMax})`;
+}
+
+/** Short label for a question's scoring rule, for manager-facing lists. */
+export function questionScoringLabel(
+  questionType: string | null | undefined,
+  scoreMin: number,
+  scoreMax: number,
+): string {
+  return questionType === "yes_no"
+    ? `Yes/No · Yes = ${scoreMax} point${scoreMax === 1 ? "" : "s"}`
+    : `${scoreMin}–${scoreMax}`;
+}

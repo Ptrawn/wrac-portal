@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import type { ReviewStage } from "@/lib/cycles";
+import type { QuestionType, ReviewStage } from "@/lib/cycles";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 type QuestionInput = {
   prompt: string;
+  question_type: QuestionType;
   score_min: number;
   score_max: number;
 };
@@ -16,6 +17,9 @@ type QuestionInput = {
 /** Turn known DB constraint / RLS failures into human-readable messages. */
 function friendlyError(message: string): string {
   const m = message.toLowerCase();
+  if (m.includes("review_questions_yes_no_min_zero")) {
+    return "A yes/no question must start at 0 (a “no” is worth 0).";
+  }
   if (m.includes("review_questions_score_range")) {
     return "Maximum score must be greater than minimum score.";
   }
@@ -23,6 +27,29 @@ function friendlyError(message: string): string {
     return "You don't have permission to do that.";
   }
   return message;
+}
+
+/**
+ * A yes/no question pins score_min to 0 (the DB constraint requires it) and uses
+ * score_max as the points a "yes" is worth.
+ */
+function normalize(input: QuestionInput): QuestionInput {
+  return input.question_type === "yes_no"
+    ? { ...input, score_min: 0 }
+    : input;
+}
+
+/** How many answers with a real score already exist for this question. */
+async function answeredCount(
+  supabase: Supabase,
+  questionId: string,
+): Promise<number> {
+  const { count } = await supabase
+    .from("review_answers")
+    .select("id", { count: "exact", head: true })
+    .eq("question_id", questionId)
+    .not("score", "is", null);
+  return count ?? 0;
 }
 
 /** Next sort_order = (max active sort_order in this cycle+stage) + 1, else 0. */
@@ -46,14 +73,16 @@ async function nextSortOrder(
 export async function addQuestion(
   cycleId: string,
   stage: ReviewStage,
-  input: QuestionInput,
+  rawInput: QuestionInput,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const input = normalize(rawInput);
   const sort_order = await nextSortOrder(supabase, cycleId, stage);
   const { error } = await supabase.from("review_questions").insert({
     cycle_id: cycleId,
     stage,
     prompt: input.prompt,
+    question_type: input.question_type,
     score_min: input.score_min,
     score_max: input.score_max,
     sort_order,
@@ -63,16 +92,52 @@ export async function addQuestion(
   return {};
 }
 
+/**
+ * Edit a question. GUARD: once a question has scored answers, its scoring shape
+ * is frozen -- changing a yes/no question's "points for a yes" (score_max) would
+ * leave every stored "yes" no longer equal to the max, so it would silently read
+ * as "no" and every total would shift retroactively. Switching a question
+ * between numeric and yes/no is blocked for the same reason. The prompt stays
+ * editable (fixing wording is safe); to change the scoring, deactivate the
+ * question and add a new one, which preserves the existing review history.
+ */
 export async function updateQuestion(
   id: string,
   cycleId: string,
-  input: QuestionInput,
+  rawInput: QuestionInput,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const input = normalize(rawInput);
+
+  const { data: current, error: readError } = await supabase
+    .from("review_questions")
+    .select("question_type, score_min, score_max")
+    .eq("id", id)
+    .single();
+  if (readError) return { error: friendlyError(readError.message) };
+
+  const scoringChanged =
+    current.question_type !== input.question_type ||
+    current.score_min !== input.score_min ||
+    current.score_max !== input.score_max;
+
+  if (scoringChanged) {
+    const answered = await answeredCount(supabase, id);
+    if (answered > 0) {
+      return {
+        error:
+          current.question_type === "yes_no"
+            ? `This yes/no question already has ${answered} scored answer${answered === 1 ? "" : "s"}. Changing what a “yes” is worth would silently turn those answers into “no” and change past totals. Remove this question and add a new one instead — the existing reviews stay intact.`
+            : `This question already has ${answered} scored answer${answered === 1 ? "" : "s"}, so its scoring can't be changed. Remove it and add a new one instead — the existing reviews stay intact.`,
+      };
+    }
+  }
+
   const { error } = await supabase
     .from("review_questions")
     .update({
       prompt: input.prompt,
+      question_type: input.question_type,
       score_min: input.score_min,
       score_max: input.score_max,
     })
@@ -145,7 +210,7 @@ export async function copyQuestionsFromCycle(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("review_questions")
-    .select("stage, prompt, score_min, score_max, sort_order")
+    .select("stage, prompt, question_type, score_min, score_max, sort_order")
     .eq("cycle_id", sourceCycleId)
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
@@ -177,6 +242,7 @@ export async function copyQuestionsFromCycle(
       cycle_id: targetCycleId,
       stage: q.stage,
       prompt: q.prompt,
+      question_type: q.question_type,
       score_min: q.score_min,
       score_max: q.score_max,
       sort_order: next,

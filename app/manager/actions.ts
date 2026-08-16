@@ -11,6 +11,7 @@ export async function approveResearcher(id: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("approve_researcher", { target: id });
   if (error) return { error: error.message };
   revalidatePath("/manager");
+  revalidatePath("/manager/researchers");
   return {};
 }
 
@@ -19,6 +20,7 @@ export async function rejectResearcher(id: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("reject_researcher", { target: id });
   if (error) return { error: error.message };
   revalidatePath("/manager");
+  revalidatePath("/manager/researchers");
   return {};
 }
 
