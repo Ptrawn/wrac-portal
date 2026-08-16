@@ -59,7 +59,11 @@ const REPORT_CSS = `
 }
 `;
 
-type ReportRow = CycleFundingReportRow & { serial_number: string | null };
+type ReportRow = CycleFundingReportRow & {
+  serial_number: string | null;
+  is_wsu: boolean;
+  arc_amount: number | string | null;
+};
 
 function num(v: number | string | null): number {
   if (v === null || v === "") return 0;
@@ -67,7 +71,16 @@ function num(v: number | string | null): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function ProjectTable({ rows }: { rows: ReportRow[] }) {
+// When `showArc`, the Awarded column is split into From ARC / From pool so the
+// Commission sees the two funding sources per project. Non-ARC cycles pass
+// showArc=false and the table renders exactly as before.
+function ProjectTable({
+  rows,
+  showArc,
+}: {
+  rows: ReportRow[];
+  showArc: boolean;
+}) {
   return (
     <table className="report-table">
       <thead>
@@ -79,27 +92,37 @@ function ProjectTable({ rows }: { rows: ReportRow[] }) {
           <th>Project year</th>
           <th className="num">Requested</th>
           <th className="num">Awarded</th>
+          {showArc && <th className="num">From ARC</th>}
+          {showArc && <th className="num">From pool</th>}
           <th className="num">Multi-year plan</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.proposal_id}>
-            {/* report rows are all funded, so the display serial carries the F */}
-            <td className="num">
-              {displaySerial(r.serial_number, "funded") ?? "—"}
-            </td>
-            <td>{r.title}</td>
-            <td>{r.researcher_name ?? "—"}</td>
-            <td>{r.researcher_institution ?? "—"}</td>
-            <td>
-              Year {r.year_number} of {r.planned_years}
-            </td>
-            <td className="num">{formatBudget(r.requested_amount)}</td>
-            <td className="num">{formatBudget(r.funded_amount)}</td>
-            <td className="num">{formatBudget(r.plan_total)}</td>
-          </tr>
-        ))}
+        {rows.map((r) => {
+          const arc = num(r.arc_amount);
+          const poolDraw = num(r.funded_amount) - arc;
+          return (
+            <tr key={r.proposal_id}>
+              {/* report rows are all funded, so the display serial carries the F */}
+              <td className="num">
+                {displaySerial(r.serial_number, "funded") ?? "—"}
+              </td>
+              <td>{r.title}</td>
+              <td>{r.researcher_name ?? "—"}</td>
+              <td>{r.researcher_institution ?? "—"}</td>
+              <td>
+                Year {r.year_number} of {r.planned_years}
+              </td>
+              <td className="num">{formatBudget(r.requested_amount)}</td>
+              <td className="num">{formatBudget(r.funded_amount)}</td>
+              {showArc && (
+                <td className="num">{arc > 0 ? formatBudget(arc) : "—"}</td>
+              )}
+              {showArc && <td className="num">{formatBudget(poolDraw)}</td>}
+              <td className="num">{formatBudget(r.plan_total)}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -131,20 +154,33 @@ export default async function CommissionReportPage({
   const { data: reportData } = await supabase.rpc("cycle_funding_report", {
     p_cycle_id: cycleId,
   });
-  const { data: serialData } = await supabase
+  // Serial + WSU/ARC fields aren't in the report RPC; read them directly
+  // (manager RLS permits it), same pattern as the allocation tool.
+  const { data: extraData } = await supabase
     .from("proposals")
-    .select("id, serial_number")
+    .select("id, serial_number, is_wsu, arc_amount")
     .eq("cycle_id", cycleId);
-  const serialByProposal = new Map(
-    ((serialData as { id: string; serial_number: string | null }[] | null) ??
-      []).map((r) => [r.id, r.serial_number]),
+  const extraByProposal = new Map(
+    ((extraData as
+      | {
+          id: string;
+          serial_number: string | null;
+          is_wsu: boolean;
+          arc_amount: number | string | null;
+        }[]
+      | null) ?? []).map((r) => [r.id, r]),
   );
-  const rows = ((reportData as CycleFundingReportRow[] | null) ?? []).map(
-    (r) => ({
+  const rows: ReportRow[] = (
+    (reportData as CycleFundingReportRow[] | null) ?? []
+  ).map((r) => {
+    const extra = extraByProposal.get(r.proposal_id);
+    return {
       ...r,
-      serial_number: serialByProposal.get(r.proposal_id) ?? null,
-    }),
-  );
+      serial_number: extra?.serial_number ?? null,
+      is_wsu: extra?.is_wsu ?? false,
+      arc_amount: extra?.arc_amount ?? null,
+    };
+  });
   const poolRows = rows.filter(
     (r) => r.type === "full" || r.type === "continuation",
   );
@@ -155,6 +191,13 @@ export default async function CommissionReportPage({
   }).format(new Date());
 
   const offcycleTotal = summary ? num(summary.offcycle_allocated) : 0;
+
+  // ARC is "active" for this report if the cycle configured a fund OR any funded
+  // proposal actually drew on ARC. A cycle with neither renders as it did before
+  // (no ARC column, no ARC summary).
+  const arcConfigured = cycle.arc_fund_total != null;
+  const anyArcOnRows = rows.some((r) => num(r.arc_amount) > 0);
+  const arcActive = arcConfigured || anyArcOnRows;
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -201,18 +244,61 @@ export default async function CommissionReportPage({
             <h3 className="text-base font-semibold border-b border-gray-300 pb-1">
               Summary
             </h3>
-            <div className="report-summary text-sm">
-              <span className="k">Total budget</span>
-              <span className="v">
-                {formatBudget(summary?.total_budget ?? 0)}
-              </span>
-              <span className="k">Total awarded (annual pool)</span>
-              <span className="v">{formatBudget(summary?.allocated ?? 0)}</span>
-              <span className="k">Remaining</span>
-              <span className="v">{formatBudget(summary?.remaining ?? 0)}</span>
-              <span className="k">Projects funded</span>
-              <span className="v">{poolRows.length}</span>
-            </div>
+            {arcActive ? (
+              <>
+                {/* Main pool (net of ARC) and the WSU ARC fund, reported as two
+                    distinct sources so the Commission sees each clearly. */}
+                <div className="text-sm font-semibold text-gray-700">
+                  Main pool
+                </div>
+                <div className="report-summary text-sm">
+                  <span className="k">Total budget</span>
+                  <span className="v">
+                    {formatBudget(summary?.total_budget ?? 0)}
+                  </span>
+                  <span className="k">Total awarded from pool (net of ARC)</span>
+                  <span className="v">
+                    {formatBudget(summary?.allocated ?? 0)}
+                  </span>
+                  <span className="k">Remaining</span>
+                  <span className="v">
+                    {formatBudget(summary?.remaining ?? 0)}
+                  </span>
+                  <span className="k">Projects funded</span>
+                  <span className="v">{poolRows.length}</span>
+                </div>
+                <div className="text-sm font-semibold text-gray-700 mt-2">
+                  WSU ARC Fund (separate source)
+                </div>
+                <div className="report-summary text-sm">
+                  <span className="k">ARC fund total</span>
+                  <span className="v">
+                    {formatBudget(summary?.arc_fund_total ?? 0)}
+                  </span>
+                  <span className="k">ARC awarded</span>
+                  <span className="v">
+                    {formatBudget(summary?.arc_allocated ?? 0)}
+                  </span>
+                  <span className="k">ARC remaining</span>
+                  <span className="v">
+                    {formatBudget(summary?.arc_remaining ?? 0)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="report-summary text-sm">
+                <span className="k">Total budget</span>
+                <span className="v">
+                  {formatBudget(summary?.total_budget ?? 0)}
+                </span>
+                <span className="k">Total awarded (annual pool)</span>
+                <span className="v">{formatBudget(summary?.allocated ?? 0)}</span>
+                <span className="k">Remaining</span>
+                <span className="v">{formatBudget(summary?.remaining ?? 0)}</span>
+                <span className="k">Projects funded</span>
+                <span className="v">{poolRows.length}</span>
+              </div>
+            )}
             {offcycleTotal > 0 && (
               <p className="text-sm text-gray-600 mt-1">
                 Off-cycle awards (funded from a separate source, outside the
@@ -236,7 +322,7 @@ export default async function CommissionReportPage({
                 No projects have been funded from the annual pool for this cycle.
               </p>
             ) : (
-              <ProjectTable rows={poolRows} />
+              <ProjectTable rows={poolRows} showArc={arcActive} />
             )}
           </div>
 
@@ -250,7 +336,7 @@ export default async function CommissionReportPage({
                 These awards are funded outside the annual pool and are not drawn
                 against the cycle&apos;s total budget.
               </p>
-              <ProjectTable rows={offCycleRows} />
+              <ProjectTable rows={offCycleRows} showArc={false} />
             </div>
           )}
 
