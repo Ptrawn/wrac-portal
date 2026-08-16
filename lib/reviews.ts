@@ -1,12 +1,15 @@
 export type ReviewStage = "pre" | "full";
 export type ReviewState = "draft" | "submitted" | "reopened";
 
+export type ReviewParticipation = "undecided" | "reviewing" | "declined";
+
 export type Review = {
   id: string;
   proposal_id: string;
   reviewer_id: string;
   stage: ReviewStage;
   state: ReviewState;
+  participation: ReviewParticipation;
   submitted_at: string | null;
   reopened_at: string | null;
   created_at: string;

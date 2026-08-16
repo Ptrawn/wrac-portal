@@ -20,7 +20,6 @@ import {
   statusLabel,
 } from "@/lib/cycles";
 import { proposalTypeLabel } from "@/lib/proposals";
-import { reviewStatusLabel } from "@/lib/reviews";
 import { SerialTag } from "@/components/serial-tag";
 
 type QueueProposal = {
@@ -46,18 +45,30 @@ type CommitteeDashboardRow = {
   my_reviews_outstanding: number;
 };
 
-function reviewBadgeVariant(
-  state: string | undefined,
-): "default" | "secondary" | "outline" {
-  switch (state) {
+type MyReview = { state: string; participation: string };
+
+// Per-proposal participation/state badge for the queue. Undecided reads as
+// needing attention; declined is muted but still reachable.
+function participationBadge(r: MyReview | undefined): {
+  label: string;
+  variant: "default" | "secondary" | "outline";
+  attention: boolean;
+  muted: boolean;
+} {
+  if (!r || r.participation === "undecided") {
+    return { label: "Not yet decided", variant: "outline", attention: true, muted: false };
+  }
+  if (r.participation === "declined") {
+    return { label: "Declined", variant: "secondary", attention: false, muted: true };
+  }
+  // participation === 'reviewing'
+  switch (r.state) {
     case "submitted":
-      return "default";
+      return { label: "Submitted", variant: "default", attention: false, muted: false };
     case "reopened":
-      return "outline";
-    case "draft":
-      return "secondary";
+      return { label: "Reopened", variant: "outline", attention: false, muted: false };
     default:
-      return "outline";
+      return { label: "Reviewing", variant: "secondary", attention: false, muted: false };
   }
 }
 
@@ -80,10 +91,13 @@ export default async function CommitteeQueuePage() {
 
   const { data: reviewData } = await supabase
     .from("reviews")
-    .select("proposal_id, state")
+    .select("proposal_id, state, participation")
     .eq("reviewer_id", userId);
-  const myReviewState = new Map<string, string>(
-    (reviewData ?? []).map((r) => [r.proposal_id, r.state]),
+  const myReview = new Map<string, MyReview>(
+    (reviewData ?? []).map((r) => [
+      r.proposal_id,
+      { state: r.state, participation: r.participation },
+    ]),
   );
 
   // Group proposals by cycle id for lookup against the dashboard rows.
@@ -171,11 +185,17 @@ export default async function CommitteeQueuePage() {
                 <CardContent>
                   <ul className="flex flex-col gap-2">
                     {items.map((p) => {
-                      const state = myReviewState.get(p.id);
+                      const badge = participationBadge(myReview.get(p.id));
                       return (
                         <li key={p.id}>
                           <Link href={`/committee/proposals/${p.id}`}>
-                            <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
+                            <div
+                              className={
+                                "border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1" +
+                                (badge.muted ? " opacity-60" : "") +
+                                (badge.attention ? " border-status-review/50" : "")
+                              }
+                            >
                               <div className="flex items-center justify-between gap-3">
                                 <span className="flex items-center gap-2 min-w-0">
                                   {p.serial_number && (
@@ -188,8 +208,15 @@ export default async function CommitteeQueuePage() {
                                     {p.title}
                                   </span>
                                 </span>
-                                <Badge variant={reviewBadgeVariant(state)}>
-                                  {reviewStatusLabel(state)}
+                                <Badge
+                                  variant={badge.variant}
+                                  className={
+                                    badge.attention
+                                      ? "border-status-review text-status-review"
+                                      : undefined
+                                  }
+                                >
+                                  {badge.label}
                                 </Badge>
                               </div>
                               <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">

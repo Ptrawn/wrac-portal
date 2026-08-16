@@ -66,6 +66,76 @@ export async function ensureReview(
   return { ok: true };
 }
 
+/**
+ * Answer (or change) the "will you review this?" gate for the caller. Ensures a
+ * review row exists first (participation lives on the review), then calls the
+ * set_review_participation RPC, which enforces owner-only + not-submitted and
+ * validates the value. `p_participation` must be 'reviewing' or 'declined'.
+ */
+export async function setReviewParticipation(
+  proposalId: string,
+  participation: "reviewing" | "declined",
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const uid = await currentUserId(supabase);
+  if (!uid) return { error: "You're not signed in." };
+
+  // Get-or-create the review row (unique(proposal_id, reviewer_id) guards races).
+  let reviewId: string | null = null;
+  const { data: existing } = await supabase
+    .from("reviews")
+    .select("id")
+    .eq("proposal_id", proposalId)
+    .eq("reviewer_id", uid)
+    .maybeSingle();
+  if (existing) {
+    reviewId = existing.id;
+  } else {
+    const { data: proposal } = await supabase
+      .from("proposals")
+      .select("type")
+      .eq("id", proposalId)
+      .single();
+    if (!proposal) return { error: "This proposal isn't available to review." };
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("reviews")
+      .insert({
+        proposal_id: proposalId,
+        reviewer_id: uid,
+        stage: stageForProposalType(proposal.type),
+      })
+      .select("id")
+      .single();
+    if (insertError) {
+      if (/duplicate|unique/i.test(insertError.message)) {
+        const { data: again } = await supabase
+          .from("reviews")
+          .select("id")
+          .eq("proposal_id", proposalId)
+          .eq("reviewer_id", uid)
+          .maybeSingle();
+        reviewId = again?.id ?? null;
+      } else {
+        return { error: friendly(insertError.message) };
+      }
+    } else {
+      reviewId = inserted.id;
+    }
+  }
+  if (!reviewId) return { error: "Couldn't prepare your review." };
+
+  const { error } = await supabase.rpc("set_review_participation", {
+    p_review_id: reviewId,
+    p_participation: participation,
+  });
+  if (error) return { error: friendly(error.message) };
+
+  revalidatePath(`/committee/proposals/${proposalId}`);
+  revalidatePath("/committee");
+  return { ok: true };
+}
+
 /** Upsert the caller's answers (save progress without submitting). */
 export async function saveReviewAnswers(
   reviewId: string,

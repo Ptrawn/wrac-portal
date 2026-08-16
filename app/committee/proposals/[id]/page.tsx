@@ -23,7 +23,7 @@ import { ProjectReportingHistory } from "@/components/reporting-history";
 import { loadProjectReportingHistory } from "@/lib/reports";
 import { SerialTag } from "@/components/serial-tag";
 import { ProposalContextDocs } from "./context-docs";
-import { ReviewForm } from "./review-form";
+import { ReviewWorkspace } from "./review-workspace";
 
 type WorkspaceProposal = {
   id: string;
@@ -279,10 +279,11 @@ export default async function ReviewWorkspacePage({
             <CardTitle className="text-xl">My review</CardTitle>
           </CardHeader>
           <CardContent>
-            <ReviewForm
+            <ReviewWorkspace
               proposalId={proposal.id}
               stage={stage}
               reviewId={review?.id ?? null}
+              participation={review?.participation ?? "undecided"}
               reviewState={review?.state ?? null}
               submittedAt={review?.submitted_at ?? null}
               editable={editable}
