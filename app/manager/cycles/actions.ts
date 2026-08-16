@@ -98,6 +98,61 @@ export async function updateCycle(
 }
 
 /**
+ * Record the per-cycle proposal template after the file has been uploaded to the
+ * 'cycle-templates' bucket. Storage policies already restrict writes to a
+ * manager; this only stores the pointer + original filename for display.
+ */
+export async function setCycleTemplate(
+  cycleId: string,
+  templatePath: string,
+  templateName: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("cycles")
+    .update({ template_path: templatePath, template_name: templateName })
+    .eq("id", cycleId);
+  if (error) return { error: friendlyError(error.message) };
+
+  revalidatePath(`/manager/cycles/${cycleId}`);
+  return { ok: true };
+}
+
+/** Remove the template: delete the stored object AND clear both columns. */
+export async function removeCycleTemplate(
+  cycleId: string,
+  templatePath: string,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+
+  const { error: storageError } = await supabase.storage
+    .from("cycle-templates")
+    .remove([templatePath]);
+  if (storageError) return { error: storageError.message };
+
+  const { error } = await supabase
+    .from("cycles")
+    .update({ template_path: null, template_name: null })
+    .eq("id", cycleId);
+  if (error) return { error: friendlyError(error.message) };
+
+  revalidatePath(`/manager/cycles/${cycleId}`);
+  return { ok: true };
+}
+
+/** Short-lived signed URL for a cycle template (private bucket). */
+export async function getCycleTemplateUrl(
+  path: string,
+): Promise<{ url?: string; error?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage
+    .from("cycle-templates")
+    .createSignedUrl(path, 60);
+  if (error) return { error: error.message };
+  return { url: data.signedUrl };
+}
+
+/**
  * Field prerequisites for entering a given status. Returns a friendly message
  * naming what's missing, or null if the cycle may advance to `target`.
  */

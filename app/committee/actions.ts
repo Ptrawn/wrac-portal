@@ -173,6 +173,22 @@ export async function submitReview(
   return { ok: true };
 }
 
+/**
+ * Short-lived signed URL for the cycle's proposal template — review context for
+ * what the researcher was asked to produce. The storage policy allows committee
+ * members to read the 'cycle-templates' bucket.
+ */
+export async function getCycleTemplateUrl(
+  path: string,
+): Promise<{ url?: string; error?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage
+    .from("cycle-templates")
+    .createSignedUrl(path, 60);
+  if (error) return { error: error.message };
+  return { url: data.signedUrl };
+}
+
 /** Short-lived signed URL for a file in the private 'proposals' bucket. */
 export async function getProposalFileUrl(
   path: string,

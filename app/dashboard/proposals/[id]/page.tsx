@@ -89,7 +89,7 @@ export default async function ProposalDetailPage({
   const { data: cycleData } = await supabase
     .from("cycles")
     .select(
-      "id, name, year, status, pre_proposal_closes_at, full_proposal_due_at",
+      "id, name, year, status, pre_proposal_closes_at, full_proposal_due_at, template_path, template_name",
     )
     .eq("id", proposal.cycle_id)
     .single();
@@ -275,6 +275,8 @@ export default async function ProposalDetailPage({
               }))}
               projectStatus={project?.status ?? "proposed"}
               continuation={continuation}
+              templatePath={cycleData?.template_path ?? null}
+              templateName={cycleData?.template_name ?? null}
               wsu={{
                 isWsu: proposal.is_wsu,
                 institutionLooksLikeWsu: looksLikeWsu,

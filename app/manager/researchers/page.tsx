@@ -5,50 +5,19 @@ import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
 import { ResearchersList, type ResearcherRow } from "./researchers-list";
 
-type ProfileRow = {
-  id: string;
-  full_name: string | null;
-  institution: string | null;
-  status: string;
-  cv_path: string | null;
-  created_at: string;
-};
-
-type PendingRow = { id: string; email: string | null };
-
 /**
  * Every registered researcher, not just the pending queue.
  *
- * Emails live in auth.users, which PostgREST doesn't expose -- only a SECURITY
- * DEFINER RPC can reach them. list_pending_researchers() supplies them for the
- * PENDING rows; approved/rejected rows show no email until an equivalent
- * list_researchers() RPC exists (see the note handed to the manager).
+ * Sourced from the manager-only list_researchers() RPC: emails live in
+ * auth.users, which PostgREST doesn't expose, so a SECURITY DEFINER RPC is the
+ * only way to show them -- and it covers pending, approved and rejected alike.
  */
 export default async function ManagerResearchersPage() {
   const { email } = await requireManager();
   const supabase = await createClient();
 
-  const { data: profileData, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, institution, status, cv_path, created_at")
-    .eq("role", "researcher")
-    .order("created_at", { ascending: false });
-  const profiles = (profileData as ProfileRow[] | null) ?? [];
-
-  const { data: pendingData } = await supabase.rpc("list_pending_researchers");
-  const emailById = new Map<string, string | null>(
-    ((pendingData as PendingRow[] | null) ?? []).map((p) => [p.id, p.email]),
-  );
-
-  const researchers: ResearcherRow[] = profiles.map((p) => ({
-    id: p.id,
-    full_name: p.full_name,
-    institution: p.institution,
-    email: emailById.get(p.id) ?? null,
-    status: p.status,
-    cv_path: p.cv_path,
-    created_at: p.created_at,
-  }));
+  const { data, error } = await supabase.rpc("list_researchers");
+  const researchers = (data as ResearcherRow[] | null) ?? [];
 
   const pendingCount = researchers.filter((r) => r.status === "pending").length;
 

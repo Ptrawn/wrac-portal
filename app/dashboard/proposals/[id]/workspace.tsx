@@ -11,8 +11,10 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { formatBudget, type DocumentRequirement } from "@/lib/cycles";
 import { arcEligibleTotal, type ProposalDocument } from "@/lib/proposals";
+import { TemplateLink } from "@/components/template-link";
 import {
   endProject,
+  getCycleTemplateUrl,
   getProposalFileUrl,
   rescindProposal,
   saveBudgetPlan,
@@ -68,6 +70,8 @@ type Props = {
   submission: SubmissionInfo;
   projectStatus: string;
   continuation: ContinuationInfo | null;
+  templatePath: string | null;
+  templateName: string | null;
   wsu: WsuInfo;
 };
 
@@ -87,6 +91,8 @@ export function ProposalWorkspace(props: Props) {
     submission,
     projectStatus,
     continuation,
+    templatePath,
+    templateName,
     wsu,
   } = props;
 
@@ -107,6 +113,14 @@ export function ProposalWorkspace(props: Props) {
           This proposal is locked ({state}). It can no longer be edited.
         </div>
       )}
+
+      {/* The cycle's template/guidance, shown at every stage while preparing a
+          submission. Renders nothing when the cycle has no template. */}
+      <TemplateLink
+        path={templatePath}
+        name={templateName}
+        signUrl={getCycleTemplateUrl}
+      />
 
       {type === "continuation" && continuation && (
         <ContinuationContext continuation={continuation} />

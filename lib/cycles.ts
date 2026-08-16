@@ -19,6 +19,9 @@ export type Cycle = {
   fiscal_year: number | null;
   total_budget: number | string | null;
   arc_fund_total: number | string | null;
+  // Per-cycle proposal template in the private 'cycle-templates' bucket.
+  template_path: string | null;
+  template_name: string | null;
   pre_proposal_opens_at: string | null;
   pre_proposal_closes_at: string | null;
   pre_review_due_at: string | null;

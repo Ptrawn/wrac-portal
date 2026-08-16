@@ -21,6 +21,7 @@ import {
 } from "@/lib/cycles";
 import { EditCycleForm } from "../edit-form";
 import { CycleStats } from "./cycle-stats";
+import { CycleTemplate } from "./cycle-template";
 import { CycleStatusControl } from "./cycle-status";
 import { QuestionSets } from "./question-sets";
 import { DocumentRequirements } from "./document-requirements";
@@ -210,6 +211,21 @@ export default async function CycleDetailPage({
           </CardHeader>
           <CardContent>
             <EditCycleForm cycle={cycle} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">
+              Proposal template / guidance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CycleTemplate
+              cycleId={id}
+              templatePath={cycle.template_path}
+              templateName={cycle.template_name}
+            />
           </CardContent>
         </Card>
 

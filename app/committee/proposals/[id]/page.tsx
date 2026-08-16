@@ -22,6 +22,8 @@ import {
 import { ProjectReportingHistory } from "@/components/reporting-history";
 import { loadProjectReportingHistory } from "@/lib/reports";
 import { SerialTag } from "@/components/serial-tag";
+import { TemplateLink } from "@/components/template-link";
+import { getCycleTemplateUrl } from "../../actions";
 import { ProposalContextDocs } from "./context-docs";
 import { ReviewWorkspace } from "./review-workspace";
 
@@ -37,7 +39,13 @@ type WorkspaceProposal = {
   outcome: string | null;
   parent_proposal_id: string | null;
   cv_snapshot_path: string | null;
-  cycle: { name: string; year: number; status: string } | null;
+  cycle: {
+    name: string;
+    year: number;
+    status: string;
+    template_path: string | null;
+    template_name: string | null;
+  } | null;
   researcher: { full_name: string | null; institution: string | null } | null;
   project: { title: string; planned_years: number } | null;
 };
@@ -57,7 +65,7 @@ export default async function ReviewWorkspacePage({
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, cycle_id, project_id, year_number, requested_amount, serial_number, outcome, parent_proposal_id, cv_snapshot_path, cycle:cycles(name, year, status), researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years)",
+      "id, title, type, cycle_id, project_id, year_number, requested_amount, serial_number, outcome, parent_proposal_id, cv_snapshot_path, cycle:cycles(name, year, status, template_path, template_name), researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -257,6 +265,14 @@ export default async function ReviewWorkspacePage({
                 file_path: d.file_path,
               }))}
               cvSnapshotPath={proposal.cv_snapshot_path}
+            />
+
+            {/* What the researcher was asked to produce — supporting context. */}
+            <TemplateLink
+              path={proposal.cycle?.template_path ?? null}
+              name={proposal.cycle?.template_name ?? null}
+              signUrl={getCycleTemplateUrl}
+              compact
             />
 
             {proposal.parent_proposal_id && parent && (
