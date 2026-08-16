@@ -23,13 +23,37 @@ export async function setFundingDecision(
   proposalId: string,
   funded: boolean,
   amount: number | null,
+  // Portion of the award covered by the WSU ARC fund. Ignored/forced null by
+  // the RPC for non-WSU proposals; the RPC raises if it exceeds the ARC-eligible
+  // ceiling or the funded amount. Defaults to 0 (no ARC) when omitted.
+  arcAmount: number | null = 0,
 ): Promise<{ error?: string; ok?: boolean }> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_funding_decision", {
     p_id: proposalId,
     p_funded: funded,
     p_amount: amount,
+    p_arc_amount: arcAmount ?? 0,
   });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId);
+  return { ok: true };
+}
+
+/**
+ * Set (or clear) the cycle's WSU ARC fund total. Editable any time before
+ * funding is finalised. Pass null to unset it (ARC tally then reads "not
+ * configured"). Manager RLS on cycles permits this update.
+ */
+export async function setArcFundTotal(
+  cycleId: string,
+  total: number | null,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("cycles")
+    .update({ arc_fund_total: total })
+    .eq("id", cycleId);
   if (error) return { error: friendly(error.message) };
   revalidate(cycleId);
   return { ok: true };

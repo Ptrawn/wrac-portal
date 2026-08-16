@@ -18,6 +18,7 @@ export type Cycle = {
   status: CycleStatus;
   fiscal_year: number | null;
   total_budget: number | string | null;
+  arc_fund_total: number | string | null;
   pre_proposal_opens_at: string | null;
   pre_proposal_closes_at: string | null;
   pre_review_due_at: string | null;

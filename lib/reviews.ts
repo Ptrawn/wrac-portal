@@ -102,6 +102,12 @@ export type CycleFundingSummary = {
   decided_count: number;
   undecided_count: number;
   offcycle_allocated: number | string;
+  // WSU ARC fund. The RPC coalesces arc_fund_total to 0, so it can't tell
+  // "not configured" from "$0" — read the cycle's raw arc_fund_total column
+  // for that. arc_allocated/arc_remaining are the live meeting figures.
+  arc_fund_total: number | string;
+  arc_allocated: number | string;
+  arc_remaining: number | string;
 };
 
 export const OUTCOME_LABELS: Record<string, string> = {

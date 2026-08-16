@@ -23,6 +23,9 @@ type Row = {
   total_score: number | string | null;
   average_score: number | string | null;
   reviews_submitted: number;
+  is_wsu: boolean;
+  arc_amount: number | string | null;
+  arc_ceiling: number;
 };
 
 export function DecisionRow({
@@ -39,6 +42,12 @@ export function DecisionRow({
     row.outcome === "funded" && row.funded_amount != null
       ? String(row.funded_amount)
       : requested,
+  );
+  // Amount to ARC (WSU only). Pre-fill from the saved decision if any, else 0 --
+  // moving money to ARC is a deliberate act, so we don't auto-max it; the
+  // ceiling is shown so the manager knows the maximum at a glance.
+  const [arc, setArc] = useState<string>(
+    row.is_wsu && row.arc_amount != null ? String(row.arc_amount) : "0",
   );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -60,6 +69,22 @@ export function DecisionRow({
     fundedNum != null &&
     requestedNum != null &&
     fundedNum !== requestedNum;
+
+  // Saved split (committed values), shown under the current decision.
+  const savedArc = row.arc_amount == null ? 0 : Number(row.arc_amount);
+  const savedPoolDraw =
+    fundedNum == null ? 0 : Math.max(0, fundedNum - savedArc);
+
+  const fund = () =>
+    run(() =>
+      setFundingDecision(
+        cycleId,
+        row.proposal_id,
+        true,
+        amount.trim() === "" ? null : Number(amount),
+        row.is_wsu ? (arc.trim() === "" ? 0 : Number(arc)) : 0,
+      ),
+    );
 
   return (
     <div className="border rounded-md p-3 flex flex-col gap-3">
@@ -91,15 +116,29 @@ export function DecisionRow({
       {/* Current decision */}
       <div className="text-sm">
         {row.outcome === "funded" ? (
-          <span className="font-medium text-status-funded">
-            Funded {formatBudget(row.funded_amount)}
-            {differs && (
-              <span className="text-status-review">
-                {" "}
-                of {formatBudget(row.requested_amount)} requested
+          <div className="flex flex-col gap-0.5">
+            <span className="font-medium text-status-funded">
+              Funded {formatBudget(row.funded_amount)}
+              {differs && (
+                <span className="text-status-review">
+                  {" "}
+                  of {formatBudget(row.requested_amount)} requested
+                </span>
+              )}
+            </span>
+            {row.is_wsu && (
+              <span className="text-xs text-muted-foreground">
+                {savedArc > 0 ? (
+                  <>
+                    {formatBudget(savedArc)} from ARC ·{" "}
+                    {formatBudget(savedPoolDraw)} from main pool
+                  </>
+                ) : (
+                  <>All {formatBudget(savedPoolDraw)} from main pool (none to ARC)</>
+                )}
               </span>
             )}
-          </span>
+          </div>
         ) : row.outcome === "not_funded" ? (
           <span className="font-medium text-muted-foreground">Declined</span>
         ) : (
@@ -107,31 +146,53 @@ export function DecisionRow({
         )}
       </div>
 
+      {/* WSU ARC eligibility (informational cap) */}
+      {row.is_wsu && (
+        <div className="text-xs rounded-md border border-status-review/40 bg-status-review/5 p-2">
+          <span className="font-medium text-status-review">WSU proposal.</span>{" "}
+          ARC-eligible ceiling (sum of WSU line items):{" "}
+          <span className="font-semibold">{formatBudget(row.arc_ceiling)}</span>.
+          This is the most of the award that the WSU ARC fund can cover.
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          type="number"
-          min="0"
-          step="0.01"
-          className="w-36"
-          aria-label="Funded amount"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <Button
-          size="sm"
-          disabled={isPending}
-          onClick={() =>
-            run(() =>
-              setFundingDecision(
-                cycleId,
-                row.proposal_id,
-                true,
-                amount.trim() === "" ? null : Number(amount),
-              ),
-            )
-          }
-        >
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] uppercase text-muted-foreground">
+            Funded amount
+          </label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            className="w-36"
+            aria-label="Funded amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </div>
+        {row.is_wsu && (
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] uppercase text-muted-foreground">
+              Amount to ARC (max {formatBudget(row.arc_ceiling)})
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              max={Math.min(
+                row.arc_ceiling,
+                amount.trim() === "" ? row.arc_ceiling : Number(amount),
+              )}
+              className="w-36"
+              aria-label="Amount to ARC"
+              value={arc}
+              onChange={(e) => setArc(e.target.value)}
+            />
+          </div>
+        )}
+        <Button size="sm" disabled={isPending} onClick={fund}>
           Fund
         </Button>
         <Button
