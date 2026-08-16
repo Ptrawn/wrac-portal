@@ -20,11 +20,22 @@ import {
   type ManagerProposalRow,
   type ProposalReviewSummary,
 } from "@/lib/reviews";
+import { SerialTag } from "@/components/serial-tag";
 import { ContinuationCandidates } from "./continuation-candidates";
 
 type Row = ManagerProposalRow & {
   summary: ProposalReviewSummary | null;
+  serial_number: string | null;
 };
+
+// Sort by serial_number (zero-padded, so lexical == numeric within a fiscal
+// year); proposals without a serial (drafts) sort last.
+function serialCompare(a: Row, b: Row): number {
+  if (a.serial_number === b.serial_number) return 0;
+  if (!a.serial_number) return 1;
+  if (!b.serial_number) return -1;
+  return a.serial_number < b.serial_number ? -1 : 1;
+}
 
 const TYPE_GROUPS: { type: string; title: string }[] = [
   { type: "pre", title: "Pre-proposals" },
@@ -42,11 +53,14 @@ function avgNumber(summary: ProposalReviewSummary | null): number {
 
 export default async function ManagerProposalsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ sort?: string }>;
 }) {
   const { email } = await requireManager();
   const { id: cycleId } = await params;
+  const sortBy = (await searchParams)?.sort === "serial" ? "serial" : "score";
 
   const supabase = await createClient();
 
@@ -78,8 +92,31 @@ export default async function ManagerProposalsPage({
       s,
     ]),
   );
+  // Serial numbers + late-submission overrides for this cycle's proposals
+  // (the list RPC doesn't carry them; manager RLS permits this direct read).
+  const { data: extraData } = await supabase
+    .from("proposals")
+    .select("id, serial_number, late_submission_allowed")
+    .eq("cycle_id", cycleId);
+  const extras =
+    (extraData as
+      | {
+          id: string;
+          serial_number: string | null;
+          late_submission_allowed: boolean;
+        }[]
+      | null) ?? [];
+  const serialByProposal = new Map(extras.map((e) => [e.id, e.serial_number]));
+  const overrideIds = new Set(
+    extras.filter((e) => e.late_submission_allowed).map((e) => e.id),
+  );
+
   const rows: Row[] = ((rowData as ManagerProposalRow[] | null) ?? []).map(
-    (r) => ({ ...r, summary: summaries.get(r.proposal_id) ?? null }),
+    (r) => ({
+      ...r,
+      summary: summaries.get(r.proposal_id) ?? null,
+      serial_number: serialByProposal.get(r.proposal_id) ?? null,
+    }),
   );
 
   const { count: committeeCount } = await supabase
@@ -87,16 +124,6 @@ export default async function ManagerProposalsPage({
     .select("id", { count: "exact", head: true })
     .eq("role", "committee");
   const totalReviewers = committeeCount ?? 0;
-
-  // Proposals with a manager late-submission override, flagged on their rows.
-  const { data: overrideData } = await supabase
-    .from("proposals")
-    .select("id")
-    .eq("cycle_id", cycleId)
-    .eq("late_submission_allowed", true);
-  const overrideIds = new Set(
-    ((overrideData as { id: string }[] | null) ?? []).map((o) => o.id),
-  );
 
   const submittedCount = rows.filter((r) => r.state === "submitted").length;
 
@@ -129,6 +156,30 @@ export default async function ManagerProposalsPage({
             {rows.length} proposals · {submittedCount} submitted · total budget{" "}
             {formatBudget(cycle.total_budget)}
           </p>
+          <div className="text-sm mt-2 flex items-center gap-2">
+            <span className="text-muted-foreground">Sort:</span>
+            <Link
+              href={`/manager/cycles/${cycleId}/proposals`}
+              className={
+                sortBy === "score"
+                  ? "font-semibold underline underline-offset-4"
+                  : "text-muted-foreground underline underline-offset-4"
+              }
+            >
+              Score
+            </Link>
+            <span className="text-muted-foreground">·</span>
+            <Link
+              href={`/manager/cycles/${cycleId}/proposals?sort=serial`}
+              className={
+                sortBy === "serial"
+                  ? "font-semibold underline underline-offset-4"
+                  : "text-muted-foreground underline underline-offset-4"
+              }
+            >
+              Serial
+            </Link>
+          </div>
         </div>
 
         <ContinuationCandidates cycleId={cycleId} candidates={candidates} />
@@ -145,7 +196,11 @@ export default async function ManagerProposalsPage({
           TYPE_GROUPS.map((group) => {
             const items = rows
               .filter((r) => r.type === group.type)
-              .sort((a, b) => avgNumber(b.summary) - avgNumber(a.summary));
+              .sort((a, b) =>
+                sortBy === "serial"
+                  ? serialCompare(a, b)
+                  : avgNumber(b.summary) - avgNumber(a.summary),
+              );
             if (items.length === 0) return null;
             return (
               <Card key={group.type}>
@@ -168,8 +223,16 @@ export default async function ManagerProposalsPage({
                           >
                             <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
                               <div className="flex items-center justify-between gap-3">
-                                <span className="font-medium text-sm">
-                                  {r.title}
+                                <span className="flex items-center gap-2 min-w-0">
+                                  {r.serial_number && (
+                                    <SerialTag
+                                      serialNumber={r.serial_number}
+                                      outcome={r.outcome}
+                                    />
+                                  )}
+                                  <span className="font-medium text-sm truncate">
+                                    {r.title}
+                                  </span>
                                 </span>
                                 <div className="flex items-center gap-2 shrink-0">
                                   {overrideIds.has(r.proposal_id) && (

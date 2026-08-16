@@ -110,6 +110,16 @@ export default async function ManagerPage() {
   const { data: tilesData } = await supabase.rpc("cycle_tiles_for_manager");
   const cycleTiles = (tilesData as CycleTile[] | null) ?? [];
 
+  // The tile RPC doesn't carry fiscal_year; fetch it directly (manager RLS).
+  const { data: fyData } = await supabase
+    .from("cycles")
+    .select("id, fiscal_year");
+  const fiscalByCycle = new Map<string, number | null>(
+    ((fyData as { id: string; fiscal_year: number | null }[] | null) ?? []).map(
+      (c) => [c.id, c.fiscal_year],
+    ),
+  );
+
   const { data: progressData } = await supabase.rpc(
     "committee_review_progress",
   );
@@ -221,6 +231,7 @@ export default async function ManagerPage() {
                 const days = daysUntilDate(c.next_deadline, today);
                 const overdue = days != null && days < 0;
                 const soon = days != null && days >= 0 && days <= 7;
+                const fy = fiscalByCycle.get(c.cycle_id);
                 return (
                   <Link key={c.cycle_id} href={`/manager/cycles/${c.cycle_id}`}>
                     <div className="h-full rounded-lg border p-4 flex flex-col gap-2 transition-colors hover:border-foreground/30">
@@ -259,6 +270,11 @@ export default async function ManagerPage() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground flex gap-4 mt-auto">
+                        {fy != null ? (
+                          <span>FY {fy}</span>
+                        ) : (
+                          <span className="text-destructive">No fiscal year</span>
+                        )}
                         <span>{c.submitted_count} submitted</span>
                         <span>{c.funded_count} funded</span>
                       </div>

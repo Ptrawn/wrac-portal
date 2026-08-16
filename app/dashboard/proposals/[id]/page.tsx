@@ -26,6 +26,7 @@ import {
   type ProposalDocument,
 } from "@/lib/proposals";
 import { stageForProposalType, type PlanContextRow } from "@/lib/reviews";
+import { SerialTag } from "@/components/serial-tag";
 import { ProposalWorkspace } from "./workspace";
 
 type BudgetYear = { year_number: number; planned_amount: number | string };
@@ -207,12 +208,20 @@ export default async function ProposalDetailPage({
                 {proposalStateLabel(proposal.state)}
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {cycleData
-                ? `${cycleData.name} (${cycleData.year})`
-                : "Cycle unavailable"}{" "}
-              · {proposalTypeLabel(proposal.type)} · Deadline{" "}
-              {formatLongDate(deadline)}
+            <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
+              {proposal.serial_number && (
+                <SerialTag
+                  serialNumber={proposal.serial_number}
+                  outcome={proposal.outcome}
+                />
+              )}
+              <span>
+                {cycleData
+                  ? `${cycleData.name} (${cycleData.year})`
+                  : "Cycle unavailable"}{" "}
+                · {proposalTypeLabel(proposal.type)} · Deadline{" "}
+                {formatLongDate(deadline)}
+              </span>
             </p>
             {parent && (
               <p className="text-sm mt-1">

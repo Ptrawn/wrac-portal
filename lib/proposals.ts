@@ -13,6 +13,8 @@ export type Proposal = {
   year_number: number;
   requested_amount: number | string | null;
   state: ProposalState;
+  serial_seq: number | null;
+  serial_number: string | null;
   outcome: string | null;
   funded_amount: number | string | null;
   cv_snapshot_path: string | null;
@@ -70,6 +72,20 @@ export function proposalTypeLabel(type: string): string {
 
 export function isProposalEditable(state: string): boolean {
   return state === "draft" || state === "reopened";
+}
+
+/**
+ * Display serial for a proposal: the base serial_number with an "F" appended
+ * when the proposal is funded. The F is NEVER stored (it's derived from
+ * outcome), so it stays correct if the outcome changes. Returns null for a
+ * proposal with no serial yet (i.e. not submitted).
+ */
+export function displaySerial(
+  serialNumber: string | null | undefined,
+  outcome: string | null | undefined,
+): string | null {
+  if (!serialNumber) return null;
+  return outcome === "funded" ? `${serialNumber}F` : serialNumber;
 }
 
 // Result of the client-side pre-check that mirrors submit_proposal's stage and

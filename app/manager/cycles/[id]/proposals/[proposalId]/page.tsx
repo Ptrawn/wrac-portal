@@ -22,6 +22,7 @@ import {
   stageForProposalType,
 } from "@/lib/reviews";
 import { ProjectReportingHistory } from "@/components/reporting-history";
+import { SerialTag } from "@/components/serial-tag";
 import { loadProjectReportingHistory } from "@/lib/reports";
 import { ProposalDecisions } from "./proposal-decisions";
 import { ManagerDocs } from "./manager-docs";
@@ -39,6 +40,7 @@ type DetailProposal = {
   year_number: number;
   requested_amount: number | string | null;
   funded_amount: number | string | null;
+  serial_number: string | null;
   parent_proposal_id: string | null;
   cv_snapshot_path: string | null;
   late_submission_allowed: boolean;
@@ -70,7 +72,7 @@ export default async function ManagerProposalDetailPage({
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, state, outcome, cycle_id, project_id, year_number, requested_amount, funded_amount, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years), cycle:cycles(name, year)",
+      "id, title, type, state, outcome, cycle_id, project_id, year_number, requested_amount, funded_amount, serial_number, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years), cycle:cycles(name, year)",
     )
     .eq("id", proposalId)
     .maybeSingle();
@@ -185,11 +187,19 @@ export default async function ManagerProposalDetailPage({
                 </Badge>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {proposal.researcher?.full_name ?? "Unknown researcher"}
-              {proposal.researcher?.institution
-                ? ` · ${proposal.researcher.institution}`
-                : ""}
+            <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
+              {proposal.serial_number && (
+                <SerialTag
+                  serialNumber={proposal.serial_number}
+                  outcome={proposal.outcome}
+                />
+              )}
+              <span>
+                {proposal.researcher?.full_name ?? "Unknown researcher"}
+                {proposal.researcher?.institution
+                  ? ` · ${proposal.researcher.institution}`
+                  : ""}
+              </span>
             </p>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">

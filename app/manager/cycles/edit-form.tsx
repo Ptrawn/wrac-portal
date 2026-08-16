@@ -20,6 +20,7 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
   const router = useRouter();
   const [name, setName] = useState(cycle.name);
   const [year, setYear] = useState(String(cycle.year));
+  const [fiscalYear, setFiscalYear] = useState(orEmpty(cycle.fiscal_year));
   const [totalBudget, setTotalBudget] = useState(orEmpty(cycle.total_budget));
   const [preOpen, setPreOpen] = useState(orEmpty(cycle.pre_proposal_opens_at));
   const [preClose, setPreClose] = useState(
@@ -54,6 +55,7 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
       const res = await updateCycle(cycle.id, {
         name: name.trim(),
         year: Number(year),
+        fiscal_year: fiscalYear.trim() === "" ? null : Number(fiscalYear),
         total_budget: nullIfEmpty(totalBudget),
         pre_proposal_opens_at: nullIfEmpty(preOpen),
         pre_proposal_closes_at: nullIfEmpty(preClose),
@@ -92,6 +94,18 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
           required
           value={year}
           onChange={(e) => setYear(e.target.value)}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="fiscal_year">
+          Fiscal Year — used for proposal serial numbers, e.g. 2027
+        </Label>
+        <Input
+          id="fiscal_year"
+          type="number"
+          placeholder="2027"
+          value={fiscalYear}
+          onChange={(e) => setFiscalYear(e.target.value)}
         />
       </div>
       <div className="grid gap-2">

@@ -9,6 +9,7 @@ import { CYCLE_STATUS_SEQUENCE, type Cycle, type CycleStatus } from "@/lib/cycle
 export type CycleInput = {
   name: string;
   year: number;
+  fiscal_year: number | null;
   total_budget: string | null;
   pre_proposal_opens_at: string | null;
   pre_proposal_closes_at: string | null;
@@ -46,6 +47,7 @@ function friendlyError(message: string): string {
 export async function createCycle(input: {
   name: string;
   year: number;
+  fiscal_year: number | null;
   total_budget: string | null;
 }): Promise<{ error?: string }> {
   const supabase = await createClient();
@@ -54,6 +56,7 @@ export async function createCycle(input: {
     .insert({
       name: input.name,
       year: input.year,
+      fiscal_year: input.fiscal_year,
       total_budget: input.total_budget,
     })
     .select("id")
@@ -75,6 +78,7 @@ export async function updateCycle(
     .update({
       name: input.name,
       year: input.year,
+      fiscal_year: input.fiscal_year,
       total_budget: input.total_budget,
       pre_proposal_opens_at: input.pre_proposal_opens_at,
       pre_proposal_closes_at: input.pre_proposal_closes_at,
@@ -102,6 +106,9 @@ function advanceBlockedReason(target: CycleStatus, cycle: Cycle): string | null 
     case "pre_proposal_open":
       if (!cycle.pre_proposal_opens_at || !cycle.pre_proposal_closes_at) {
         return "Set the pre-proposal open and close dates before opening pre-proposals.";
+      }
+      if (cycle.fiscal_year == null) {
+        return "Set the cycle's fiscal year before opening pre-proposals — it's required for proposal serial numbers.";
       }
       return null;
     case "pre_review":

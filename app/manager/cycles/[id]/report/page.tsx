@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/app-header";
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
 import { formatBudget, type Cycle } from "@/lib/cycles";
+import { displaySerial } from "@/lib/proposals";
 import {
   type CycleFundingReportRow,
   type CycleFundingSummary,
@@ -58,7 +59,7 @@ const REPORT_CSS = `
 }
 `;
 
-type ReportRow = CycleFundingReportRow;
+type ReportRow = CycleFundingReportRow & { serial_number: string | null };
 
 function num(v: number | string | null): number {
   if (v === null || v === "") return 0;
@@ -71,6 +72,7 @@ function ProjectTable({ rows }: { rows: ReportRow[] }) {
     <table className="report-table">
       <thead>
         <tr>
+          <th>Serial</th>
           <th>Project</th>
           <th>Researcher</th>
           <th>Institution</th>
@@ -83,6 +85,10 @@ function ProjectTable({ rows }: { rows: ReportRow[] }) {
       <tbody>
         {rows.map((r) => (
           <tr key={r.proposal_id}>
+            {/* report rows are all funded, so the display serial carries the F */}
+            <td className="num">
+              {displaySerial(r.serial_number, "funded") ?? "—"}
+            </td>
             <td>{r.title}</td>
             <td>{r.researcher_name ?? "—"}</td>
             <td>{r.researcher_institution ?? "—"}</td>
@@ -125,7 +131,20 @@ export default async function CommissionReportPage({
   const { data: reportData } = await supabase.rpc("cycle_funding_report", {
     p_cycle_id: cycleId,
   });
-  const rows = (reportData as ReportRow[] | null) ?? [];
+  const { data: serialData } = await supabase
+    .from("proposals")
+    .select("id, serial_number")
+    .eq("cycle_id", cycleId);
+  const serialByProposal = new Map(
+    ((serialData as { id: string; serial_number: string | null }[] | null) ??
+      []).map((r) => [r.id, r.serial_number]),
+  );
+  const rows = ((reportData as CycleFundingReportRow[] | null) ?? []).map(
+    (r) => ({
+      ...r,
+      serial_number: serialByProposal.get(r.proposal_id) ?? null,
+    }),
+  );
   const poolRows = rows.filter(
     (r) => r.type === "full" || r.type === "continuation",
   );

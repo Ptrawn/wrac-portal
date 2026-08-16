@@ -10,6 +10,7 @@ import { createCycle } from "./actions";
 export function CreateCycleForm() {
   const [name, setName] = useState("");
   const [year, setYear] = useState("");
+  const [fiscalYear, setFiscalYear] = useState("");
   const [totalBudget, setTotalBudget] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -21,6 +22,7 @@ export function CreateCycleForm() {
       const res = await createCycle({
         name: name.trim(),
         year: Number(year),
+        fiscal_year: fiscalYear.trim() === "" ? null : Number(fiscalYear),
         total_budget: totalBudget.trim() === "" ? null : totalBudget.trim(),
       });
       // On success the action redirects; we only get here on error.
@@ -50,6 +52,18 @@ export function CreateCycleForm() {
           required
           value={year}
           onChange={(e) => setYear(e.target.value)}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="fiscal_year">
+          Fiscal Year — used for proposal serial numbers, e.g. 2027
+        </Label>
+        <Input
+          id="fiscal_year"
+          type="number"
+          placeholder="2027"
+          value={fiscalYear}
+          onChange={(e) => setFiscalYear(e.target.value)}
         />
       </div>
       <div className="grid gap-2">

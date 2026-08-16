@@ -21,6 +21,7 @@ import {
 } from "@/lib/cycles";
 import { proposalTypeLabel } from "@/lib/proposals";
 import { reviewStatusLabel } from "@/lib/reviews";
+import { SerialTag } from "@/components/serial-tag";
 
 type QueueProposal = {
   id: string;
@@ -28,6 +29,8 @@ type QueueProposal = {
   type: string;
   requested_amount: number | string | null;
   submitted_at: string | null;
+  serial_number: string | null;
+  outcome: string | null;
   cycle: { id: string } | null;
   researcher: { full_name: string | null; institution: string | null } | null;
 };
@@ -69,7 +72,7 @@ export default async function CommitteeQueuePage() {
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, requested_amount, submitted_at, cycle:cycles(id), researcher:profiles!researcher_id(full_name, institution)",
+      "id, title, type, requested_amount, submitted_at, serial_number, outcome, cycle:cycles(id), researcher:profiles!researcher_id(full_name, institution)",
     )
     .order("submitted_at", { ascending: true });
   // Supabase types infer to-one embeds as arrays; at runtime they're objects.
@@ -174,8 +177,16 @@ export default async function CommitteeQueuePage() {
                           <Link href={`/committee/proposals/${p.id}`}>
                             <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
                               <div className="flex items-center justify-between gap-3">
-                                <span className="font-medium text-sm">
-                                  {p.title}
+                                <span className="flex items-center gap-2 min-w-0">
+                                  {p.serial_number && (
+                                    <SerialTag
+                                      serialNumber={p.serial_number}
+                                      outcome={p.outcome}
+                                    />
+                                  )}
+                                  <span className="font-medium text-sm truncate">
+                                    {p.title}
+                                  </span>
                                 </span>
                                 <Badge variant={reviewBadgeVariant(state)}>
                                   {reviewStatusLabel(state)}

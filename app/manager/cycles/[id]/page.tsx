@@ -97,11 +97,28 @@ export default async function CycleDetailPage({
           </div>
         </div>
 
+        {cycle.fiscal_year == null && (
+          <div className="border border-destructive/40 bg-destructive/10 text-sm p-3 rounded-none">
+            <span className="font-semibold">No fiscal year set.</span>{" "}
+            Proposals can&apos;t be submitted and this cycle can&apos;t open for
+            pre-proposals until you set a fiscal year (used for serial numbers).
+            Set it in <span className="font-medium">Edit cycle</span> below.
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-xl">Cycle Status</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-3">
+            <div className="text-sm">
+              <span className="text-muted-foreground">Fiscal year: </span>
+              {cycle.fiscal_year != null ? (
+                <span className="num font-medium">{cycle.fiscal_year}</span>
+              ) : (
+                <span className="text-destructive font-medium">not set</span>
+              )}
+            </div>
             <CycleStatusControl cycleId={id} status={cycle.status} />
           </CardContent>
         </Card>

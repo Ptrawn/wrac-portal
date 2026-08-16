@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBudget } from "@/lib/cycles";
 import { formatAverage } from "@/lib/reviews";
+import { SerialTag } from "@/components/serial-tag";
 import { clearFundingDecision, setFundingDecision } from "./actions";
 import { CommentsButton } from "./comments-button";
 
 type Row = {
   proposal_id: string;
   title: string;
+  serial_number: string | null;
   requested_amount: number | string | null;
   researcher_name: string | null;
   researcher_institution: string | null;
@@ -63,7 +65,15 @@ export function DecisionRow({
     <div className="border rounded-md p-3 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm">
-          <div className="font-medium">{row.title}</div>
+          <div className="font-medium flex items-center gap-2">
+            {row.serial_number && (
+              <SerialTag
+                serialNumber={row.serial_number}
+                outcome={row.outcome}
+              />
+            )}
+            <span>{row.title}</span>
+          </div>
           <div className="text-muted-foreground">
             {row.researcher_name ?? "Unknown"}
             {row.researcher_institution ? ` · ${row.researcher_institution}` : ""}

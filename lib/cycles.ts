@@ -16,6 +16,7 @@ export type Cycle = {
   name: string;
   year: number;
   status: CycleStatus;
+  fiscal_year: number | null;
   total_budget: number | string | null;
   pre_proposal_opens_at: string | null;
   pre_proposal_closes_at: string | null;

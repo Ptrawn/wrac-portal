@@ -66,6 +66,16 @@ export default async function AllocationPage({
   );
   const allRows = (rowData as ManagerProposalRow[] | null) ?? [];
 
+  // Serial numbers aren't in the list RPC; fetch directly (manager RLS).
+  const { data: serialData } = await supabase
+    .from("proposals")
+    .select("id, serial_number")
+    .eq("cycle_id", cycleId);
+  const serialByProposal = new Map(
+    ((serialData as { id: string; serial_number: string | null }[] | null) ??
+      []).map((r) => [r.id, r.serial_number]),
+  );
+
   const buildRows = (types: string[]) =>
     allRows
       .filter((r) => r.state === "submitted" && types.includes(r.type))
@@ -79,6 +89,7 @@ export default async function AllocationPage({
         return {
           proposal_id: r.proposal_id,
           title: r.title,
+          serial_number: serialByProposal.get(r.proposal_id) ?? null,
           requested_amount: r.requested_amount,
           researcher_name: r.researcher_name,
           researcher_institution: r.researcher_institution,

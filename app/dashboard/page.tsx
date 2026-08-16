@@ -27,6 +27,7 @@ import {
   type Proposal,
 } from "@/lib/proposals";
 import { reportStateLabel, reportTypeLabel } from "@/lib/reviews";
+import { SerialTag } from "@/components/serial-tag";
 
 type ReportRow = {
   id: string;
@@ -257,7 +258,17 @@ export default async function DashboardPage() {
                     <Link href={`/dashboard/proposals/${p.id}`}>
                       <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
                         <div className="flex items-center justify-between gap-3">
-                          <span className="font-medium text-sm">{p.title}</span>
+                          <span className="flex items-center gap-2 min-w-0">
+                            {p.serial_number && (
+                              <SerialTag
+                                serialNumber={p.serial_number}
+                                outcome={p.outcome}
+                              />
+                            )}
+                            <span className="font-medium text-sm truncate">
+                              {p.title}
+                            </span>
+                          </span>
                           <div className="flex items-center gap-2 shrink-0">
                             {p.project?.final_report_required && (
                               <Badge
