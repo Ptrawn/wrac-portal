@@ -13,15 +13,23 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
 import {
+  pacificDateToday,
   statusLabel,
   type Cycle,
   type DocumentRequirement,
   type ReviewQuestion,
 } from "@/lib/cycles";
 import { EditCycleForm } from "../edit-form";
+import { CycleStats } from "./cycle-stats";
 import { CycleStatusControl } from "./cycle-status";
 import { QuestionSets } from "./question-sets";
 import { DocumentRequirements } from "./document-requirements";
+
+function num(value: number | string | null): number {
+  if (value === null || value === "") return 0;
+  const n = Number(value);
+  return Number.isNaN(n) ? 0 : n;
+}
 
 export default async function CycleDetailPage({
   params,
@@ -69,6 +77,63 @@ export default async function CycleDetailPage({
   const otherCycles = (otherData as
     | { id: string; name: string; year: number }[]
     | null) ?? [];
+
+  // Per-cycle stats. "Received" = submitted proposals; requested/awarded cover
+  // the fundable types so a pre-proposal and its full aren't double-counted.
+  const { data: statProposalData } = await supabase
+    .from("proposals")
+    .select("type, state, outcome, requested_amount, funded_amount")
+    .eq("cycle_id", id);
+  const statProposals =
+    (statProposalData as
+      | {
+          type: string;
+          state: string;
+          outcome: string | null;
+          requested_amount: number | string | null;
+          funded_amount: number | string | null;
+        }[]
+      | null) ?? [];
+
+  const submittedOf = (type: string) =>
+    statProposals.filter((p) => p.state === "submitted" && p.type === type)
+      .length;
+  const fundable = statProposals.filter(
+    (p) => p.type === "full" || p.type === "continuation" || p.type === "off_cycle",
+  );
+  const proposalStats = {
+    pre: submittedOf("pre"),
+    full: submittedOf("full"),
+    continuation: submittedOf("continuation"),
+    offCycle: submittedOf("off_cycle"),
+    funded: statProposals.filter((p) => p.outcome === "funded").length,
+    totalRequested: fundable
+      .filter((p) => p.state === "submitted")
+      .reduce((s, p) => s + num(p.requested_amount), 0),
+    totalAwarded: fundable
+      .filter((p) => p.outcome === "funded")
+      .reduce((s, p) => s + num(p.funded_amount), 0),
+  };
+
+  const { data: statReportData } = await supabase
+    .from("reports")
+    .select("state, due_date")
+    .eq("cycle_id", id);
+  const statReports =
+    (statReportData as { state: string; due_date: string | null }[] | null) ?? [];
+  const today = pacificDateToday();
+  const reportStats = {
+    pending: statReports.filter(
+      (r) => r.state === "pending" || r.state === "reopened",
+    ).length,
+    submitted: statReports.filter((r) => r.state === "submitted").length,
+    pastDue: statReports.filter(
+      (r) =>
+        (r.state === "pending" || r.state === "reopened") &&
+        r.due_date != null &&
+        r.due_date < today,
+    ).length,
+  };
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -120,6 +185,19 @@ export default async function CycleDetailPage({
               )}
             </div>
             <CycleStatusControl cycleId={id} status={cycle.status} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Cycle stats</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CycleStats
+              cycleId={id}
+              proposals={proposalStats}
+              reports={reportStats}
+            />
           </CardContent>
         </Card>
 

@@ -134,7 +134,26 @@ export default async function ManagerPage() {
   );
   const members = (memberData as MemberStatus[] | null) ?? [];
 
+  // Outstanding reports across ALL cycles (closed included -- a closed cycle can
+  // still owe reports), for the report-status tile.
+  const { data: outstandingReportData } = await supabase
+    .from("reports")
+    .select("due_date")
+    .in("state", ["pending", "reopened"]);
+  const outstandingReports =
+    (outstandingReportData as { due_date: string | null }[] | null) ?? [];
+
   const today = pacificDateToday();
+
+  const pastDueReports = outstandingReports.filter(
+    (r) => r.due_date != null && r.due_date < today,
+  ).length;
+  // 60 days: report deadlines are seasonal (months apart), so a shorter window
+  // would read 0 almost year-round and tell the manager nothing.
+  const dueSoonReports = outstandingReports.filter((r) => {
+    const d = daysUntilDate(r.due_date, today);
+    return d != null && d >= 0 && d <= 60;
+  }).length;
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -155,7 +174,7 @@ export default async function ManagerPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Needs your attention
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <AttentionTile
               href="#pending"
               label="Pending registrations"
@@ -188,6 +207,17 @@ export default async function ManagerPage() {
                   : "Committee is all caught up"
               }
               attention={progress.outstanding_reviews > 0}
+            />
+            <AttentionTile
+              href="/manager/reports"
+              label="Past-due reports"
+              value={pastDueReports}
+              hint={
+                dueSoonReports > 0
+                  ? `${dueSoonReports} more due in the next 60 days`
+                  : "None due in the next 60 days"
+              }
+              attention={pastDueReports > 0}
             />
           </div>
         </section>
