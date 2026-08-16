@@ -5,21 +5,32 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { formatBudget, type DocumentRequirement } from "@/lib/cycles";
-import type { ProposalDocument } from "@/lib/proposals";
+import { arcEligibleTotal, type ProposalDocument } from "@/lib/proposals";
 import {
   endProject,
   getProposalFileUrl,
   rescindProposal,
   saveBudgetPlan,
+  saveProposalWsu,
   submitProposal,
   updateProposal,
 } from "../actions";
 
 type BudgetYearInput = { year_number: number; planned_amount: string };
+
+type WsuInfo = {
+  isWsu: boolean;
+  institutionLooksLikeWsu: boolean;
+  salary: string;
+  salaryBenefits: string;
+  wages: string;
+  wageBenefits: string;
+};
 
 type ContinuationInfo = {
   yearNumber: number;
@@ -57,6 +68,7 @@ type Props = {
   submission: SubmissionInfo;
   projectStatus: string;
   continuation: ContinuationInfo | null;
+  wsu: WsuInfo;
 };
 
 export function ProposalWorkspace(props: Props) {
@@ -75,9 +87,11 @@ export function ProposalWorkspace(props: Props) {
     submission,
     projectStatus,
     continuation,
+    wsu,
   } = props;
 
   const isFull = type === "full";
+  const isWsuEligible = type === "full" || type === "continuation";
   const requiredReqs = requirements.filter((r) => r.is_required);
   const uploadedReqIds = new Set(documents.map((d) => d.requirement_id));
   const requiredUploaded = requiredReqs.filter((r) =>
@@ -108,6 +122,14 @@ export function ProposalWorkspace(props: Props) {
           initialPlannedYears={initialPlannedYears}
           initialAmount={initialAmount}
           initialBudgetYears={budgetYears}
+        />
+      )}
+
+      {isWsuEligible && (
+        <WsuBudgetSection
+          proposalId={proposalId}
+          editable={editable}
+          initialWsu={wsu}
         />
       )}
 
@@ -624,6 +646,241 @@ function BudgetPlanSection({
         {isPending ? "Saving…" : "Save plan"}
       </Button>
     </div>
+  );
+}
+
+function WsuBudgetSection({
+  proposalId,
+  editable,
+  initialWsu,
+}: {
+  proposalId: string;
+  editable: boolean;
+  initialWsu: WsuInfo;
+}) {
+  const router = useRouter();
+  const [isWsu, setIsWsu] = useState(initialWsu.isWsu);
+  const [salary, setSalary] = useState(initialWsu.salary);
+  const [salaryBenefits, setSalaryBenefits] = useState(initialWsu.salaryBenefits);
+  const [wages, setWages] = useState(initialWsu.wages);
+  const [wageBenefits, setWageBenefits] = useState(initialWsu.wageBenefits);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const total = arcEligibleTotal({
+    wsu_salary: salary,
+    wsu_salary_benefits: salaryBenefits,
+    wsu_wages: wages,
+    wsu_wage_benefits: wageBenefits,
+  });
+
+  const hasStoredValues =
+    initialWsu.salary !== "" ||
+    initialWsu.salaryBenefits !== "" ||
+    initialWsu.wages !== "" ||
+    initialWsu.wageBenefits !== "";
+
+  // Read-only (submitted/locked): show nothing for a non-WSU proposal; show the
+  // entered detail for a WSU one.
+  if (!editable) {
+    if (!initialWsu.isWsu) return null;
+    return (
+      <div className="flex flex-col gap-2">
+        <h3 className="font-semibold">WSU Budget Detail (for ARC)</h3>
+        <p className="text-xs text-muted-foreground">
+          A breakout of detail within the requested amount — not additional
+          money. Their sum is the most the WSU ARC fund could cover.
+        </p>
+        <ul className="flex flex-col gap-0.5 text-sm">
+          <WsuReadonlyRow label="WSU Salary" value={initialWsu.salary} />
+          <WsuReadonlyRow
+            label="WSU Salary Benefits"
+            value={initialWsu.salaryBenefits}
+          />
+          <WsuReadonlyRow label="WSU Wages" value={initialWsu.wages} />
+          <WsuReadonlyRow
+            label="WSU Wage Benefits"
+            value={initialWsu.wageBenefits}
+          />
+        </ul>
+        <p className="text-sm">
+          ARC-eligible total:{" "}
+          <span className="font-semibold">{formatBudget(total.toString())}</span>
+        </p>
+      </div>
+    );
+  }
+
+  const save = () => {
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const res = await saveProposalWsu(proposalId, {
+        isWsu,
+        lineItems: isWsu
+          ? {
+              wsu_salary: salary.trim() === "" ? null : salary.trim(),
+              wsu_salary_benefits:
+                salaryBenefits.trim() === "" ? null : salaryBenefits.trim(),
+              wsu_wages: wages.trim() === "" ? null : wages.trim(),
+              wsu_wage_benefits:
+                wageBenefits.trim() === "" ? null : wageBenefits.trim(),
+            }
+          : undefined,
+      });
+      if (res?.error) setError(res.error);
+      else {
+        setSaved(true);
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <h3 className="font-semibold">WSU researcher</h3>
+        <p className="text-xs text-muted-foreground">
+          WSU proposals can break out wages and benefits that the WSU ARC fund
+          may cover. This is informational detail — it doesn&apos;t change your
+          requested amount.
+        </p>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm w-fit cursor-pointer">
+        <Checkbox
+          checked={isWsu}
+          onCheckedChange={(v) => {
+            setSaved(false);
+            setIsWsu(v === true);
+          }}
+        />
+        <span>This is a WSU researcher proposal</span>
+      </label>
+
+      {!isWsu && initialWsu.institutionLooksLikeWsu && (
+        <p className="text-xs text-muted-foreground">
+          Your profile institution looks like WSU — tick the box above if this is
+          a WSU proposal.
+        </p>
+      )}
+
+      {!isWsu && hasStoredValues && (
+        <p className="text-xs text-muted-foreground">
+          You have WSU budget detail on file. It&apos;s hidden and won&apos;t be
+          used while this box is unticked, but it&apos;s kept — re-tick to edit
+          it. It saves as hidden when you press Save.
+        </p>
+      )}
+
+      {isWsu && (
+        <div className="flex flex-col gap-3 rounded-md border p-3">
+          <div>
+            <h4 className="font-medium text-sm">WSU Budget Detail (for ARC)</h4>
+            <p className="text-xs text-muted-foreground">
+              These four figures are a breakout of detail within your requested
+              amount — not additional money. They don&apos;t have to add up to
+              the requested amount.
+            </p>
+          </div>
+          <ul className="flex flex-col gap-2">
+            <WsuInputRow
+              id="wsu_salary"
+              label="WSU Salary"
+              value={salary}
+              onChange={(v) => {
+                setSaved(false);
+                setSalary(v);
+              }}
+            />
+            <WsuInputRow
+              id="wsu_salary_benefits"
+              label="WSU Salary Benefits"
+              value={salaryBenefits}
+              onChange={(v) => {
+                setSaved(false);
+                setSalaryBenefits(v);
+              }}
+            />
+            <WsuInputRow
+              id="wsu_wages"
+              label="WSU Wages"
+              value={wages}
+              onChange={(v) => {
+                setSaved(false);
+                setWages(v);
+              }}
+            />
+            <WsuInputRow
+              id="wsu_wage_benefits"
+              label="WSU Wage Benefits"
+              value={wageBenefits}
+              onChange={(v) => {
+                setSaved(false);
+                setWageBenefits(v);
+              }}
+            />
+          </ul>
+          <p className="text-sm">
+            ARC-eligible total:{" "}
+            <span className="font-semibold">
+              {formatBudget(total.toString())}
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            This is the maximum that could be covered by the WSU ARC fund. The
+            actual amount to ARC is recorded by the program manager at funding.
+          </p>
+        </div>
+      )}
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {saved && !error && (
+        <p className="text-sm text-status-funded">Saved.</p>
+      )}
+      <Button size="sm" disabled={isPending} onClick={save} className="w-fit">
+        {isPending ? "Saving…" : "Save WSU detail"}
+      </Button>
+    </div>
+  );
+}
+
+function WsuInputRow({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <li className="grid grid-cols-[11rem_1fr] items-center gap-3">
+      <Label htmlFor={id} className="text-sm">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        min="0"
+        step="0.01"
+        className="w-40"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </li>
+  );
+}
+
+function WsuReadonlyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <li className="grid grid-cols-[11rem_1fr] text-muted-foreground">
+      <span>{label}</span>
+      <span>{value === "" ? "—" : formatBudget(value)}</span>
+    </li>
   );
 }
 

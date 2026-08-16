@@ -17,6 +17,12 @@ export type Proposal = {
   serial_number: string | null;
   outcome: string | null;
   funded_amount: number | string | null;
+  is_wsu: boolean;
+  wsu_salary: number | string | null;
+  wsu_salary_benefits: number | string | null;
+  wsu_wages: number | string | null;
+  wsu_wage_benefits: number | string | null;
+  arc_amount: number | string | null;
   cv_snapshot_path: string | null;
   late_submission_allowed: boolean;
   submitted_at: string | null;
@@ -86,6 +92,49 @@ export function displaySerial(
 ): string | null {
   if (!serialNumber) return null;
   return outcome === "funded" ? `${serialNumber}F` : serialNumber;
+}
+
+/**
+ * Whether a profile institution string looks like Washington State University.
+ * Used only as a convenience nudge on the WSU checkbox — never authoritative;
+ * the researcher's tick (and the manager's override) is the source of truth.
+ */
+export function institutionLooksLikeWsu(
+  institution: string | null | undefined,
+): boolean {
+  if (!institution) return false;
+  const s = institution.toLowerCase();
+  return (
+    /\bwsu\b/.test(s) ||
+    s.includes("washington state univ")
+  );
+}
+
+/** Coerce a numeric-or-string-or-null money value to a number (blank -> 0). */
+export function moneyToNumber(value: number | string | null | undefined): number {
+  if (value === null || value === undefined || value === "") return 0;
+  const n = Number(value);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+/**
+ * The ARC-eligible ceiling for a WSU proposal: the sum of the four informational
+ * WSU line items. Mirrors the DB helper public.proposal_arc_ceiling. This is the
+ * maximum that the WSU ARC fund could cover for the proposal — it is a breakout
+ * of detail within the requested amount, not additional money.
+ */
+export function arcEligibleTotal(items: {
+  wsu_salary: number | string | null;
+  wsu_salary_benefits: number | string | null;
+  wsu_wages: number | string | null;
+  wsu_wage_benefits: number | string | null;
+}): number {
+  return (
+    moneyToNumber(items.wsu_salary) +
+    moneyToNumber(items.wsu_salary_benefits) +
+    moneyToNumber(items.wsu_wages) +
+    moneyToNumber(items.wsu_wage_benefits)
+  );
 }
 
 // Result of the client-side pre-check that mirrors submit_proposal's stage and

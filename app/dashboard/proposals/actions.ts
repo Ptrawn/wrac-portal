@@ -173,6 +173,47 @@ export async function saveBudgetPlan(
   return { ok: true };
 }
 
+/**
+ * Save the WSU flag and (when flagged) the four informational ARC line items on
+ * a draft/reopened full or continuation proposal. is_wsu is researcher-editable
+ * in draft/reopened (guarded in the DB); arc_amount is NOT set here — that's the
+ * funding meeting. When unticking WSU we persist is_wsu=false but LEAVE the four
+ * line items on file (hidden), so a researcher who unticks by mistake doesn't
+ * lose their figures; re-ticking brings them back. The four columns are only
+ * ever overwritten while WSU is ticked.
+ */
+export async function saveProposalWsu(
+  proposalId: string,
+  input: {
+    isWsu: boolean;
+    lineItems?: {
+      wsu_salary: string | null;
+      wsu_salary_benefits: string | null;
+      wsu_wages: string | null;
+      wsu_wage_benefits: string | null;
+    };
+  },
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+
+  const update: Record<string, unknown> = { is_wsu: input.isWsu };
+  if (input.isWsu && input.lineItems) {
+    update.wsu_salary = input.lineItems.wsu_salary;
+    update.wsu_salary_benefits = input.lineItems.wsu_salary_benefits;
+    update.wsu_wages = input.lineItems.wsu_wages;
+    update.wsu_wage_benefits = input.lineItems.wsu_wage_benefits;
+  }
+
+  const { error } = await supabase
+    .from("proposals")
+    .update(update)
+    .eq("id", proposalId);
+  if (error) return { error: friendly(error.message) };
+
+  revalidatePath(`/dashboard/proposals/${proposalId}`);
+  return { ok: true };
+}
+
 /** Short-lived signed URL for a file in the private 'proposals' bucket. */
 export async function getProposalFileUrl(
   path: string,

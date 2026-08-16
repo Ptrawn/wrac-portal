@@ -18,6 +18,7 @@ import {
 import type { DocumentRequirement } from "@/lib/cycles";
 import {
   computeSubmissionEligibility,
+  institutionLooksLikeWsu,
   isProposalEditable,
   proposalStateLabel,
   proposalTypeLabel,
@@ -182,10 +183,15 @@ export default async function ProposalDetailPage({
 
   const { data: profileData } = await supabase
     .from("profiles")
-    .select("cv_path")
+    .select("cv_path, institution")
     .eq("id", userId)
     .single();
-  const hasCv = Boolean((profileData as { cv_path: string | null } | null)?.cv_path);
+  const profile = profileData as {
+    cv_path: string | null;
+    institution: string | null;
+  } | null;
+  const hasCv = Boolean(profile?.cv_path);
+  const looksLikeWsu = institutionLooksLikeWsu(profile?.institution);
 
   const editable = isProposalEditable(proposal.state);
 
@@ -269,6 +275,24 @@ export default async function ProposalDetailPage({
               }))}
               projectStatus={project?.status ?? "proposed"}
               continuation={continuation}
+              wsu={{
+                isWsu: proposal.is_wsu,
+                institutionLooksLikeWsu: looksLikeWsu,
+                salary:
+                  proposal.wsu_salary == null
+                    ? ""
+                    : String(proposal.wsu_salary),
+                salaryBenefits:
+                  proposal.wsu_salary_benefits == null
+                    ? ""
+                    : String(proposal.wsu_salary_benefits),
+                wages:
+                  proposal.wsu_wages == null ? "" : String(proposal.wsu_wages),
+                wageBenefits:
+                  proposal.wsu_wage_benefits == null
+                    ? ""
+                    : String(proposal.wsu_wage_benefits),
+              }}
             />
           </CardContent>
         </Card>
