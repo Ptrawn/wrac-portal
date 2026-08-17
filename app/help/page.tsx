@@ -59,22 +59,35 @@ export default async function HelpPage() {
           <CardHeader>
             <CardTitle className="text-xl">{guide.label}</CardTitle>
             <CardDescription>
-              Opens as a PDF. You can read it in the browser or download it.
+              {guide.href
+                ? "Opens as a PDF. You can read it in the browser or download it."
+                : "Not available here yet."}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-3">
-            <Button asChild>
-              <a href={guide.href} target="_blank" rel="noopener noreferrer">
-                Open the {guide.label}
-              </a>
-            </Button>
-            <a
-              href={guide.href}
-              download
-              className="text-sm underline underline-offset-4"
-            >
-              Download
-            </a>
+            {guide.href ? (
+              <>
+                <Button asChild>
+                  <a href={guide.href} target="_blank" rel="noopener noreferrer">
+                    Open the {guide.label}
+                  </a>
+                </Button>
+                <a
+                  href={guide.href}
+                  download
+                  className="text-sm underline underline-offset-4"
+                >
+                  Download
+                </a>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This guide is being rewritten and isn&apos;t published in the
+                portal at the moment. Ask the developer for the current copy —
+                they&apos;ll send it to you directly. It will appear here once
+                the updated version is ready.
+              </p>
+            )}
           </CardContent>
         </Card>
 
