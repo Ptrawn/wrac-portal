@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/password-input";
 import { createClient } from "@/lib/supabase/client";
 
 export function ChangePasswordForm() {
@@ -54,20 +54,20 @@ export function ChangePasswordForm() {
     <form onSubmit={submit} className="flex flex-col gap-4">
       <div className="grid gap-2">
         <Label htmlFor="password">New password</Label>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           required
+          autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="confirm">Confirm new password</Label>
-        <Input
+        <PasswordInput
           id="confirm"
-          type="password"
           required
+          autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
         />

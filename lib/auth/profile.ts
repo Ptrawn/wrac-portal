@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
@@ -19,8 +20,11 @@ export type Profile = {
  * Reads the current authenticated user and their own profile row.
  * Reading one's own row is permitted by the `profiles_select_own` RLS policy.
  * Returns nulls when there is no session (or the profile row isn't present yet).
+ *
+ * Memoised per request with React `cache()`: a page's guard and the AppHeader
+ * both need the profile, and this way they share one lookup instead of two.
  */
-export async function getUserAndProfile(): Promise<{
+export const getUserAndProfile = cache(async function getUserAndProfile(): Promise<{
   userId: string | null;
   email: string | null;
   profile: Profile | null;
@@ -43,7 +47,7 @@ export async function getUserAndProfile(): Promise<{
     .single();
 
   return { userId, email, profile: (profile as Profile | null) ?? null };
-}
+});
 
 /**
  * Single source of truth for where an authenticated user belongs, based on

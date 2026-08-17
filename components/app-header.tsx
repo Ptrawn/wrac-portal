@@ -1,8 +1,24 @@
 import Link from "next/link";
 
 import { LogoutButton } from "@/components/logout-button";
+import { getUserAndProfile } from "@/lib/auth/profile";
+import { guideForRole } from "@/lib/guides";
 
-export function AppHeader({ email }: { email?: string | null }) {
+/**
+ * The persistent app chrome. It resolves the signed-in user itself (the lookup
+ * is memoised per request, so this costs nothing on top of the page's own
+ * guard), which keeps the greeting and the role-appropriate guide link correct
+ * everywhere without threading props through every page.
+ *
+ * `email` is still accepted so the 20-odd existing call sites keep working; the
+ * profile is the source of truth for the name.
+ */
+export async function AppHeader({ email }: { email?: string | null }) {
+  const { email: sessionEmail, profile } = await getUserAndProfile();
+  const shownEmail = email ?? sessionEmail;
+  const name = profile?.full_name?.trim();
+  const guide = guideForRole(profile);
+
   return (
     <nav className="topo-dark w-full border-b border-white/10 bg-wa-black text-wa-white">
       <div className="w-full max-w-5xl mx-auto flex justify-between items-center gap-4 px-5 h-16">
@@ -26,9 +42,23 @@ export function AppHeader({ email }: { email?: string | null }) {
           </span>
         </div>
         <div className="flex items-center gap-4 text-sm">
-          {email && (
-            <span className="text-white/60 hidden sm:inline">{email}</span>
-          )}
+          <div className="hidden sm:flex flex-col items-end leading-tight">
+            {/* Greet by name; without a name, greet plainly rather than
+                showing an empty or "null" name. */}
+            <span className="text-wa-white">
+              {name ? `Welcome, ${name}` : "Welcome"}
+            </span>
+            {shownEmail && (
+              <span className="text-white/50 text-xs">{shownEmail}</span>
+            )}
+          </div>
+          <Link
+            href="/help"
+            className="text-white/80 underline underline-offset-4 hover:text-wa-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-wa-black rounded-sm"
+            title={guide.label}
+          >
+            User guide
+          </Link>
           <LogoutButton />
         </div>
       </div>
