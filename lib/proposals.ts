@@ -1,5 +1,10 @@
 export type ProposalType = "pre" | "full" | "continuation" | "off_cycle";
-export type ProposalState = "draft" | "submitted" | "reopened" | "rescinded";
+export type ProposalState =
+  | "draft"
+  | "submitted"
+  | "reopened"
+  | "rescinded"
+  | "withdrawn";
 
 // numeric columns can arrive from supabase-js as number or string.
 export type Proposal = {
@@ -70,6 +75,9 @@ export const PROPOSAL_STATE_LABELS: Record<ProposalState, string> = {
   submitted: "Submitted",
   reopened: "Reopened",
   rescinded: "Rescinded",
+  // A manager withdrew an invitation issued in error, before the researcher
+  // started work. Distinct from 'rescinded', which is the researcher's own act.
+  withdrawn: "Withdrawn",
 };
 
 export const PROPOSAL_TYPE_LABELS: Record<ProposalType, string> = {

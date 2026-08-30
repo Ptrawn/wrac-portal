@@ -157,10 +157,14 @@ export default async function ManagerProposalDetailPage({
   );
 
   // Child full proposal (if invited) for the "already created" link + gating.
+  // Withdrawn children are excluded: a withdrawn invitation no longer counts, so
+  // the Invite button reappears — and a parent can carry BOTH a withdrawn child
+  // and its live replacement, which would make maybeSingle() throw on two rows.
   const { data: childData } = await supabase
     .from("proposals")
     .select("id")
     .eq("parent_proposal_id", proposalId)
+    .neq("state", "withdrawn")
     .maybeSingle();
   const childId = (childData as { id: string } | null)?.id ?? null;
 
@@ -381,6 +385,7 @@ export default async function ManagerProposalDetailPage({
               outcome={proposal.outcome}
               hasFullProposal={Boolean(childId)}
               childId={childId}
+              parentProposalId={proposal.parent_proposal_id}
             />
           </CardContent>
         </Card>

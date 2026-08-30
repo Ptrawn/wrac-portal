@@ -48,6 +48,34 @@ export async function inviteFullProposal(
   return { newProposalId: data as string };
 }
 
+/**
+ * Withdraw an invitation issued in error. `proposalId` is the CHILD — the
+ * invited full/continuation draft being withdrawn. The RPC refuses once the
+ * researcher has started work and raises a readable reason, which we pass
+ * through unchanged.
+ *
+ * `parentProposalId` is not used by the RPC; it's here for revalidation. The
+ * "Invite full proposal" button lives on the PARENT's detail page and gates on
+ * the absence of a live child, so that page must be revalidated too or the
+ * button stays hidden until something else invalidates the route.
+ */
+export async function withdrawInvitation(
+  cycleId: string,
+  proposalId: string,
+  parentProposalId: string | null,
+): Promise<{ error?: string; ok?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("withdraw_invitation", {
+    p_id: proposalId,
+  });
+  if (error) return { error: friendly(error.message) };
+  revalidate(cycleId, proposalId);
+  if (parentProposalId) {
+    revalidatePath(`/manager/cycles/${cycleId}/proposals/${parentProposalId}`);
+  }
+  return { ok: true };
+}
+
 export async function inviteContinuation(
   cycleId: string,
   projectId: string,

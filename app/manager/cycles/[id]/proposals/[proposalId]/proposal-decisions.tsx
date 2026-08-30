@@ -10,6 +10,7 @@ import {
   inviteFullProposal,
   reopenProposalAction,
   setProposalOutcome,
+  withdrawInvitation,
 } from "../actions";
 
 export function ProposalDecisions({
@@ -20,6 +21,7 @@ export function ProposalDecisions({
   outcome,
   hasFullProposal,
   childId,
+  parentProposalId,
 }: {
   cycleId: string;
   proposalId: string;
@@ -28,17 +30,26 @@ export function ProposalDecisions({
   outcome: string | null;
   hasFullProposal: boolean;
   childId: string | null;
+  parentProposalId: string | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [newChildId, setNewChildId] = useState<string | null>(null);
   const [confirmingReopen, setConfirmingReopen] = useState(false);
+  const [confirmingWithdraw, setConfirmingWithdraw] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const isSubmitted = state === "submitted";
   const isPre = type === "pre";
   const effectiveChildId = childId ?? newChildId;
+
+  // This proposal is itself an invited draft the manager can un-issue. The RPC
+  // re-checks all of this (and the work-started gate) server-side.
+  const isWithdrawableInvitation =
+    (type === "full" || type === "continuation") &&
+    state === "draft" &&
+    Boolean(parentProposalId);
 
   const setOutcome = (value: string) => {
     setError(null);
@@ -73,6 +84,23 @@ export function ProposalDecisions({
       if (res?.error) setError(res.error);
       else {
         setConfirmingReopen(false);
+        router.refresh();
+      }
+    });
+  };
+
+  const withdraw = () => {
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const res = await withdrawInvitation(
+        cycleId,
+        proposalId,
+        parentProposalId,
+      );
+      if (res?.error) setError(res.error);
+      else {
+        setConfirmingWithdraw(false);
         router.refresh();
       }
     });
@@ -166,6 +194,46 @@ export function ProposalDecisions({
                 variant="outline"
                 disabled={isPending}
                 onClick={() => setConfirmingReopen(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ))}
+
+      {/* Withdraw an invitation issued in error (invited drafts only) */}
+      {isWithdrawableInvitation &&
+        (!confirmingWithdraw ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-fit"
+            disabled={isPending}
+            onClick={() => setConfirmingWithdraw(true)}
+          >
+            Withdraw invitation
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-2 text-sm">
+            <p>
+              This withdraws the invitation and closes the researcher&apos;s
+              draft — nothing they have written is lost, because this is only
+              possible before they start work. You can then issue the correct
+              invitation. Continue?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                disabled={isPending}
+                onClick={withdraw}
+              >
+                {isPending ? "Withdrawing…" : "Withdraw invitation"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setConfirmingWithdraw(false)}
               >
                 Cancel
               </Button>
