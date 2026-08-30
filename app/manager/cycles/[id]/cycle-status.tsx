@@ -48,7 +48,14 @@ export function CycleStatusControl({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Badge variant="secondary" className="text-sm">
+        {/* The cycle's current stage is the headline fact on this control, so
+            it gets an inverse fill (black on page grey) rather than the muted
+            secondary treatment used for stage badges elsewhere. Neutrals only —
+            the status-* palette carries other meanings. */}
+        <Badge
+          variant="outline"
+          className="border-transparent bg-foreground text-background text-base px-2.5 py-1"
+        >
           {statusLabel(status)}
         </Badge>
         <span className="text-sm text-muted-foreground">
@@ -63,12 +70,14 @@ export function CycleStatusControl({
             key={s}
             title={statusLabel(s)}
             className={
-              "h-1.5 w-7 rounded-full " +
+              // The current pip is set apart by WIDTH, not just opacity — in a
+              // row of nine, an opacity step alone is hard to locate.
+              "h-1.5 rounded-full " +
               (i < idx
-                ? "bg-foreground/40"
+                ? "w-7 bg-foreground/40"
                 : i === idx
-                  ? "bg-foreground"
-                  : "bg-foreground/10")
+                  ? "w-12 bg-foreground"
+                  : "w-7 bg-foreground/10")
             }
           />
         ))}
