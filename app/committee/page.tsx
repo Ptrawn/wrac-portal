@@ -19,7 +19,6 @@ import {
   pacificDateToday,
   statusLabel,
 } from "@/lib/cycles";
-import { proposalTypeLabel } from "@/lib/proposals";
 import { SerialTag } from "@/components/serial-tag";
 
 type QueueProposal = {
@@ -46,6 +45,17 @@ type CommitteeDashboardRow = {
 };
 
 type MyReview = { state: string; participation: string };
+
+// Type sections within a cycle card, in a fixed order so the layout is stable
+// whatever the cycle happens to contain. Mirrors the manager proposal list's
+// grouping; deliberately kept local rather than shared, since the two lists are
+// free to diverge.
+const TYPE_GROUPS: { type: string; title: string }[] = [
+  { type: "pre", title: "Pre-proposals" },
+  { type: "full", title: "Full proposals" },
+  { type: "continuation", title: "Continuations" },
+  { type: "off_cycle", title: "Off-cycle" },
+];
 
 // Per-proposal participation/state badge for the queue. Undecided reads as
 // needing attention; declined is muted but still reachable.
@@ -183,68 +193,98 @@ export default async function CommitteeQueuePage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ul className="flex flex-col gap-2">
-                    {items.map((p) => {
-                      const badge = participationBadge(myReview.get(p.id));
-                      return (
-                        <li key={p.id}>
-                          <Link href={`/committee/proposals/${p.id}`}>
-                            <div
-                              className={
-                                "border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1" +
-                                (badge.muted ? " opacity-60" : "") +
-                                (badge.attention ? " border-status-review/50" : "")
-                              }
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="flex items-center gap-2 min-w-0">
-                                  {p.serial_number && (
-                                    <SerialTag
-                                      serialNumber={p.serial_number}
-                                      outcome={p.outcome}
-                                    />
-                                  )}
-                                  <span className="font-medium text-sm truncate">
-                                    {p.title}
-                                  </span>
-                                </span>
-                                <Badge
-                                  variant={badge.variant}
-                                  className={
-                                    badge.attention
-                                      ? "border-status-review text-status-review"
-                                      : undefined
-                                  }
-                                >
-                                  {badge.label}
-                                </Badge>
-                              </div>
-                              <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                                <span>
-                                  {p.researcher?.full_name ?? "Unknown"}
-                                  {p.researcher?.institution
-                                    ? ` · ${p.researcher.institution}`
-                                    : ""}
-                                </span>
-                                <span>{proposalTypeLabel(p.type)}</span>
-                                {p.requested_amount != null && (
-                                  <span>
-                                    Requested {formatBudget(p.requested_amount)}
-                                  </span>
-                                )}
-                                {p.submitted_at && (
-                                  <span>
-                                    Submitted{" "}
-                                    {formatDate(p.submitted_at.slice(0, 10))}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  {items.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No proposals visible for this cycle.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-5">
+                      {TYPE_GROUPS.map((group) => {
+                        // filter() preserves the submitted_at ascending order the
+                        // query set and byCycle's insertion order carried through.
+                        const groupItems = items.filter(
+                          (p) => p.type === group.type,
+                        );
+                        if (groupItems.length === 0) return null;
+                        return (
+                          <div
+                            key={group.type}
+                            className="flex flex-col gap-2"
+                          >
+                            <h2 className="text-sm font-semibold text-muted-foreground">
+                              {group.title}{" "}
+                              <span className="font-normal">
+                                ({groupItems.length})
+                              </span>
+                            </h2>
+                            <ul className="flex flex-col gap-2">
+                              {groupItems.map((p) => {
+                                const badge = participationBadge(
+                                  myReview.get(p.id),
+                                );
+                                return (
+                                  <li key={p.id}>
+                                    <Link href={`/committee/proposals/${p.id}`}>
+                                      <div
+                                        className={
+                                          "border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1" +
+                                          (badge.muted ? " opacity-60" : "") +
+                                          (badge.attention ? " border-status-review/50" : "")
+                                        }
+                                      >
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="flex items-center gap-2 min-w-0">
+                                            {p.serial_number && (
+                                              <SerialTag
+                                                serialNumber={p.serial_number}
+                                                outcome={p.outcome}
+                                              />
+                                            )}
+                                            <span className="font-medium text-sm truncate">
+                                              {p.title}
+                                            </span>
+                                          </span>
+                                          <Badge
+                                            variant={badge.variant}
+                                            className={
+                                              badge.attention
+                                                ? "border-status-review text-status-review"
+                                                : undefined
+                                            }
+                                          >
+                                            {badge.label}
+                                          </Badge>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                                          <span>
+                                            {p.researcher?.full_name ?? "Unknown"}
+                                            {p.researcher?.institution
+                                              ? ` · ${p.researcher.institution}`
+                                              : ""}
+                                          </span>
+                                          {p.requested_amount != null && (
+                                            <span>
+                                              Requested {formatBudget(p.requested_amount)}
+                                            </span>
+                                          )}
+                                          {p.submitted_at && (
+                                            <span>
+                                              Submitted{" "}
+                                              {formatDate(p.submitted_at.slice(0, 10))}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
