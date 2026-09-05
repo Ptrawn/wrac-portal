@@ -137,23 +137,55 @@ export function moneyToNumber(value: number | string | null | undefined): number
 }
 
 /**
- * The ARC-eligible ceiling for a WSU proposal: the sum of the four informational
- * WSU line items. Mirrors the DB helper public.proposal_arc_ceiling. This is the
- * maximum that the WSU ARC fund could cover for the proposal — it is a breakout
- * of detail within the requested amount, not additional money.
+ * The ARC-eligible ceiling for a WSU proposal: WSU SALARY alone. Mirrors the DB
+ * helper public.proposal_arc_ceiling, which set_funding_decision enforces as the
+ * cap on arc_amount.
+ *
+ * Salary benefits, wages and wage benefits are informational detail within the
+ * requested amount and are NOT ARC-eligible. (This previously summed all four
+ * line items, which was wrong.) The parameter is deliberately narrowed to the
+ * one field it reads, so a caller can't pass the other three and assume they
+ * count.
  */
 export function arcEligibleTotal(items: {
   wsu_salary: number | string | null;
-  wsu_salary_benefits: number | string | null;
-  wsu_wages: number | string | null;
-  wsu_wage_benefits: number | string | null;
 }): number {
-  return (
-    moneyToNumber(items.wsu_salary) +
-    moneyToNumber(items.wsu_salary_benefits) +
-    moneyToNumber(items.wsu_wages) +
-    moneyToNumber(items.wsu_wage_benefits)
-  );
+  return moneyToNumber(items.wsu_salary);
+}
+
+/**
+ * WSU "magic funds" for a WSU proposal: WSU covers salary benefits in proportion
+ * to how much of the salary the committee moved to ARC.
+ *
+ *     coverage = arc_amount / wsu_salary   (clamped to 100%)
+ *     magic    = wsu_salary_benefits * coverage
+ *
+ * All the salary to ARC means all the salary benefits are covered; half means
+ * half; no ARC means none. Mirrors the magic_total aggregate in
+ * public.cycle_funding_summary.
+ *
+ * This money is paid by WSU DIRECTLY, outside the WRAC budget. It never reduces
+ * the pool draw, which stays (funded_amount - arc_amount) everywhere — never
+ * subtract this from a pool figure.
+ *
+ * The zero/absent-salary guard is written explicitly rather than leaning on
+ * either language's null handling, because the two disagree: Postgres LEAST
+ * IGNORES nulls (least(null, 1) is 1, not null) while JavaScript's Math.min
+ * propagates NaN. Both sides therefore establish a finite ratio first and clamp
+ * only after. Returns 0 — never NaN or Infinity.
+ */
+export function magicFunds(items: {
+  wsu_salary: number | string | null;
+  wsu_salary_benefits: number | string | null;
+  arc_amount: number | string | null;
+}): number {
+  const salary = moneyToNumber(items.wsu_salary);
+  const benefits = moneyToNumber(items.wsu_salary_benefits);
+  const arc = moneyToNumber(items.arc_amount);
+  // No salary means no coverage ratio at all (and no divide); no benefits or no
+  // ARC means nothing to cover.
+  if (salary <= 0 || benefits <= 0 || arc <= 0) return 0;
+  return benefits * Math.min(arc / salary, 1);
 }
 
 // Result of the client-side pre-check that mirrors submit_proposal's stage and

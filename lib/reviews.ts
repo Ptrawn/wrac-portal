@@ -114,6 +114,11 @@ export type CycleFundingSummary = {
   arc_fund_total: number | string;
   arc_allocated: number | string;
   arc_remaining: number | string;
+  // WSU "magic funds": salary benefits WSU covers in proportion to ARC salary
+  // coverage. Paid by WSU directly, outside the WRAC budget — REPORTING ONLY.
+  // It is uncapped (there is no configured pot), so there is no allocated /
+  // remaining pair, and it must never be subtracted from a pool figure.
+  magic_total: number | string;
 };
 
 export const OUTCOME_LABELS: Record<string, string> = {
