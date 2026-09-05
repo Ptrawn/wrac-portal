@@ -76,7 +76,16 @@ export default async function CyclesPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-[10rem_1fr] gap-y-1 text-sm">
-                      <span className="text-muted-foreground">Total budget</span>
+                      {/* Gross is the right figure on a setup/overview page —
+                          it is what the manager entered. The qualifier is only
+                          added when an ARC fund exists to carve out of it;
+                          without one, gross and net are the same number and
+                          "(gross)" would be noise. */}
+                      <span className="text-muted-foreground">
+                        {cycle.arc_fund_total != null
+                          ? "Total budget (gross)"
+                          : "Total budget"}
+                      </span>
                       <span>{formatBudget(cycle.total_budget)}</span>
                       <span className="text-muted-foreground">
                         Pre-proposal

@@ -9,7 +9,11 @@ export type CycleProposalStats = {
   offCycle: number;
   funded: number;
   totalRequested: number;
-  totalAwarded: number;
+  // Both from cycle_funding_summary, so this card and the allocation screen
+  // cannot drift: poolAwarded is `allocated` (net of ARC, full + continuation
+  // only) and offCycleAwarded is `offcycle_allocated` (a separate source).
+  poolAwarded: number;
+  offCycleAwarded: number;
 };
 
 export type CycleReportStats = {
@@ -98,14 +102,24 @@ export function CycleStats({
             value={formatBudget(proposals.totalRequested)}
           />
           <Stat
-            label="Total awarded"
-            value={formatBudget(proposals.totalAwarded)}
+            label="Awarded from pool"
+            value={formatBudget(proposals.poolAwarded)}
             tone="funded"
           />
+          {proposals.offCycleAwarded > 0 && (
+            <Stat
+              label="Awarded off-cycle"
+              value={formatBudget(proposals.offCycleAwarded)}
+            />
+          )}
         </div>
         <p className="text-[10px] text-muted-foreground mt-1">
-          Requested and awarded cover full, continuation and off-cycle proposals
-          (the fundable types).
+          Requested is the gross ask across full, continuation and off-cycle
+          proposals. Awarded from pool is the draw on the annual pool — full and
+          continuation only, net of anything covered by the WSU ARC fund
+          {proposals.offCycleAwarded > 0
+            ? "; off-cycle awards come from a separate source and are shown apart."
+            : "."}
         </p>
       </div>
 

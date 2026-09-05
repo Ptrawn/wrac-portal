@@ -20,6 +20,7 @@ import {
   type DocumentRequirement,
   type ReviewQuestion,
 } from "@/lib/cycles";
+import { type CycleFundingSummary } from "@/lib/reviews";
 import { EditCycleForm } from "../edit-form";
 import { CycleStats } from "./cycle-stats";
 import { CycleTemplate } from "./cycle-template";
@@ -84,7 +85,7 @@ export default async function CycleDetailPage({
   // the fundable types so a pre-proposal and its full aren't double-counted.
   const { data: statProposalData } = await supabase
     .from("proposals")
-    .select("type, state, outcome, requested_amount, funded_amount")
+    .select("type, state, outcome, requested_amount")
     .eq("cycle_id", id);
   const statProposals =
     (statProposalData as
@@ -93,9 +94,20 @@ export default async function CycleDetailPage({
           state: string;
           outcome: string | null;
           requested_amount: number | string | null;
-          funded_amount: number | string | null;
         }[]
       | null) ?? [];
+
+  // Awarded figures come from the RPC, not a local reduce: it is the single
+  // ARC-aware implementation of the pool draw, so the stats card and the
+  // allocation screen agree structurally rather than by two sums being kept in
+  // step. `allocated` is net of arc_amount and excludes off-cycle, which is
+  // reported separately below.
+  const { data: fundingSummaryData } = await supabase.rpc(
+    "cycle_funding_summary",
+    { p_cycle_id: id },
+  );
+  const fundingSummary =
+    (fundingSummaryData as CycleFundingSummary[] | null)?.[0] ?? null;
 
   const submittedOf = (type: string) =>
     statProposals.filter((p) => p.state === "submitted" && p.type === type)
@@ -112,9 +124,11 @@ export default async function CycleDetailPage({
     totalRequested: fundable
       .filter((p) => p.state === "submitted")
       .reduce((s, p) => s + num(p.requested_amount), 0),
-    totalAwarded: fundable
-      .filter((p) => p.outcome === "funded")
-      .reduce((s, p) => s + num(p.funded_amount), 0),
+    // From the RPC — see the note above the call.
+    poolAwarded: fundingSummary ? num(fundingSummary.allocated) : 0,
+    offCycleAwarded: fundingSummary
+      ? num(fundingSummary.offcycle_allocated)
+      : 0,
   };
 
   const { data: statReportData } = await supabase
