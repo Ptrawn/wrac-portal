@@ -682,12 +682,10 @@ function WsuBudgetSection({
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const total = arcEligibleTotal({
-    wsu_salary: salary,
-    wsu_salary_benefits: salaryBenefits,
-    wsu_wages: wages,
-    wsu_wage_benefits: wageBenefits,
-  });
+  // ARC-eligible = WSU SALARY only. The other three line items are still
+  // entered and still matter (salary benefits are what WSU magic funds cover),
+  // but they are not ARC-eligible.
+  const total = arcEligibleTotal({ wsu_salary: salary });
 
   const hasStoredValues =
     initialWsu.salary !== "" ||
@@ -704,7 +702,7 @@ function WsuBudgetSection({
         <h3 className="font-semibold">WSU Budget Detail (for ARC)</h3>
         <p className="text-xs text-muted-foreground">
           A breakout of detail within the requested amount — not additional
-          money. Their sum is the most the WSU ARC fund could cover.
+          money. Of these, WSU Salary is the most the WSU ARC fund could cover.
         </p>
         <ul className="flex flex-col gap-0.5 text-sm">
           <WsuReadonlyRow label="WSU Salary" value={initialWsu.salary} />
@@ -719,7 +717,7 @@ function WsuBudgetSection({
           />
         </ul>
         <p className="text-sm">
-          ARC-eligible total:{" "}
+          ARC-eligible (salary only):{" "}
           <span className="font-semibold">{formatBudget(total.toString())}</span>
         </p>
       </div>
@@ -837,7 +835,7 @@ function WsuBudgetSection({
             />
           </ul>
           <p className="text-sm">
-            ARC-eligible total:{" "}
+            ARC-eligible (salary only):{" "}
             <span className="font-semibold">
               {formatBudget(total.toString())}
             </span>

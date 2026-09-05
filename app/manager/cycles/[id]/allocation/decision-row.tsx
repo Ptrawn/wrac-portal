@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBudget } from "@/lib/cycles";
+import { magicFunds } from "@/lib/proposals";
 import { formatAverage } from "@/lib/reviews";
 import { SerialTag } from "@/components/serial-tag";
 import { clearFundingDecision, setFundingDecision } from "./actions";
@@ -26,7 +27,13 @@ type Row = {
   declined_count: number;
   is_wsu: boolean;
   arc_amount: number | string | null;
+  // The ARC-eligible ceiling: WSU SALARY only. The other three line items ride
+  // along for context and for the magic calculation.
   arc_ceiling: number;
+  wsu_salary: number | string | null;
+  wsu_salary_benefits: number | string | null;
+  wsu_wages: number | string | null;
+  wsu_wage_benefits: number | string | null;
   funding_note: string | null;
 };
 
@@ -76,10 +83,42 @@ export function DecisionRow({
     requestedNum != null &&
     fundedNum !== requestedNum;
 
-  // Saved split (committed values), shown under the current decision.
+  // Saved split (committed values), shown under the current decision. The pool
+  // draw is funded_amount - arc_amount; magic is NOT subtracted — WSU pays it
+  // outside the WRAC budget entirely.
   const savedArc = row.arc_amount == null ? 0 : Number(row.arc_amount);
   const savedPoolDraw =
     fundedNum == null ? 0 : Math.max(0, fundedNum - savedArc);
+  const savedMagic = magicFunds({
+    wsu_salary: row.wsu_salary,
+    wsu_salary_benefits: row.wsu_salary_benefits,
+    arc_amount: row.arc_amount,
+  });
+
+  // LIVE magic figure: what the ARC amount currently typed in the box would draw
+  // from WSU magic funds. Benefit ratios differ by researcher, so the manager
+  // needs this per project as she decides where the ARC money does most good.
+  const typedArc = arc.trim() === "" ? 0 : Number(arc);
+  const liveMagic = Number.isNaN(typedArc)
+    ? 0
+    : magicFunds({
+        wsu_salary: row.wsu_salary,
+        wsu_salary_benefits: row.wsu_salary_benefits,
+        arc_amount: typedArc,
+      });
+
+  // The two helper lines under the inputs. Both are rendered as plain strings
+  // as well as JSX so they can go in a title attribute — the lines are pinned to
+  // one line (see HELPER_LINE below), so hover is the fallback if one is ever
+  // clipped. Both put their dollar figure EARLY, since truncation eats the tail.
+  const requestedLabel =
+    row.requested_amount == null
+      ? "No amount requested"
+      : `of ${formatBudget(row.requested_amount)} requested`;
+  const magicLabel =
+    liveMagic > 0
+      ? `Draws ${formatBudget(liveMagic)} from WSU magic funds`
+      : "No WSU magic funds at this ARC amount";
 
   // Live check against what's typed in the amount box: when the manager is about
   // to fund below the request, the note is prompted (never hard-required).
@@ -93,6 +132,15 @@ export function DecisionRow({
   // The note field shows automatically for a below-request award or when one is
   // already saved; otherwise it's behind a small "add a note" toggle.
   const noteVisible = wouldBeBelowRequest || showNote || note !== "";
+
+  // Shared classes for the two helper lines beneath the inputs. leading-[15px]
+  // pins the line box explicitly (text-[10px] sets font-size ONLY, so without
+  // this the height comes from Preflight's inherited line-height: 1.5), and
+  // truncate keeps each to exactly one line whatever the text says. Identical on
+  // both columns, so the columns stay the same height and — the container being
+  // items-end — both inputs sit on one line.
+  const HELPER_LINE =
+    "text-[10px] leading-[15px] text-muted-foreground truncate";
 
   const fund = () =>
     run(() =>
@@ -158,6 +206,9 @@ export function DecisionRow({
                   <>
                     {formatBudget(savedArc)} from ARC ·{" "}
                     {formatBudget(savedPoolDraw)} from main pool
+                    {savedMagic > 0 && (
+                      <> · {formatBudget(savedMagic)} from WSU magic funds</>
+                    )}
                   </>
                 ) : (
                   <>All {formatBudget(savedPoolDraw)} from main pool (none to ARC)</>
@@ -177,13 +228,37 @@ export function DecisionRow({
         )}
       </div>
 
-      {/* WSU ARC eligibility (informational cap) */}
+      {/* WSU budget detail. Only SALARY is ARC-eligible; the other three items
+          are shown for context because they're part of how the researcher built
+          the request, and salary benefits is what WSU magic funds cover. */}
       {row.is_wsu && (
-        <div className="text-xs rounded-md border border-status-review/40 bg-status-review/5 p-2">
-          <span className="font-medium text-status-review">WSU proposal.</span>{" "}
-          ARC-eligible ceiling (sum of WSU line items):{" "}
-          <span className="font-semibold">{formatBudget(row.arc_ceiling)}</span>.
-          This is the most of the award that the WSU ARC fund can cover.
+        <div className="text-xs rounded-md border border-status-review/40 bg-status-review/5 p-2 flex flex-col gap-1">
+          <div>
+            <span className="font-medium text-status-review">WSU proposal.</span>{" "}
+            Only WSU Salary is ARC-eligible — the rest is context.
+          </div>
+          <ul className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5">
+            <li className="font-medium">WSU Salary (ARC-eligible)</li>
+            <li className="text-right font-semibold tabular-nums">
+              {formatBudget(row.wsu_salary)}
+            </li>
+            <li className="text-muted-foreground">WSU Salary Benefits</li>
+            <li className="text-right tabular-nums text-muted-foreground">
+              {formatBudget(row.wsu_salary_benefits)}
+            </li>
+            <li className="text-muted-foreground">WSU Wages</li>
+            <li className="text-right tabular-nums text-muted-foreground">
+              {formatBudget(row.wsu_wages)}
+            </li>
+            <li className="text-muted-foreground">WSU Wage Benefits</li>
+            <li className="text-right tabular-nums text-muted-foreground">
+              {formatBudget(row.wsu_wage_benefits)}
+            </li>
+          </ul>
+          <div className="text-muted-foreground">
+            Salary benefits are covered by WSU magic funds in proportion to the
+            salary you move to ARC.
+          </div>
         </div>
       )}
 
@@ -202,11 +277,17 @@ export function DecisionRow({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+          {/* Matches the ARC column's live-magic line so both columns are the
+              same height and both inputs sit on one line. It also earns its
+              place: the request is the figure she is deciding against. */}
+          <span className={HELPER_LINE} title={requestedLabel}>
+            {requestedLabel}
+          </span>
         </div>
         {row.is_wsu && (
           <div className="flex flex-col gap-0.5">
             <label className="text-[10px] uppercase text-muted-foreground">
-              Amount to ARC (max {formatBudget(row.arc_ceiling)})
+              Amount to ARC (max salary {formatBudget(row.arc_ceiling)})
             </label>
             <Input
               type="number"
@@ -221,6 +302,21 @@ export function DecisionRow({
               value={arc}
               onChange={(e) => setArc(e.target.value)}
             />
+            {/* Live: what the typed ARC amount pulls in from WSU. Updates as she
+                types, so she can see the effect per project while deciding. */}
+            <span className={HELPER_LINE} title={magicLabel}>
+              {liveMagic > 0 ? (
+                <>
+                  Draws{" "}
+                  <span className="font-semibold">
+                    {formatBudget(liveMagic)}
+                  </span>{" "}
+                  from WSU magic funds
+                </>
+              ) : (
+                <>No WSU magic funds at this ARC amount</>
+              )}
+            </span>
           </div>
         )}
         <Button size="sm" disabled={isPending} onClick={fund}>

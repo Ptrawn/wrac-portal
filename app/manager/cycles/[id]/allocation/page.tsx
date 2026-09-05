@@ -119,14 +119,15 @@ export default async function AllocationPage({
           is_wsu: w?.is_wsu ?? false,
           arc_amount: w?.arc_amount ?? null,
           funding_note: w?.funding_note ?? null,
-          arc_ceiling: w
-            ? arcEligibleTotal({
-                wsu_salary: w.wsu_salary,
-                wsu_salary_benefits: w.wsu_salary_benefits,
-                wsu_wages: w.wsu_wages,
-                wsu_wage_benefits: w.wsu_wage_benefits,
-              })
-            : 0,
+          // The four line items go to the row so the decision row can show them
+          // individually; salary additionally drives the ARC ceiling and the
+          // live magic-funds figure.
+          wsu_salary: w?.wsu_salary ?? null,
+          wsu_salary_benefits: w?.wsu_salary_benefits ?? null,
+          wsu_wages: w?.wsu_wages ?? null,
+          wsu_wage_benefits: w?.wsu_wage_benefits ?? null,
+          // ARC-eligible ceiling: WSU SALARY only (not the four-item sum).
+          arc_ceiling: w ? arcEligibleTotal({ wsu_salary: w.wsu_salary }) : 0,
         };
       });
 
@@ -145,6 +146,8 @@ export default async function AllocationPage({
   const arcTotal = summary ? Number(summary.arc_fund_total) : 0;
   const arcAllocated = summary ? Number(summary.arc_allocated) : 0;
   const arcRemaining = summary ? Number(summary.arc_remaining) : 0;
+  // WSU magic funds: uncapped, so a single figure rather than a tally triplet.
+  const magicTotal = summary ? Number(summary.magic_total) : 0;
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -162,12 +165,21 @@ export default async function AllocationPage({
               decided
             </span>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             {/* Main pool tally (net of ARC) */}
             <div className="rounded-md border border-l-4 border-l-status-funded p-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-status-funded mb-1">
                 Main Pool
               </div>
+              {/* The ARC fund is carved OUT of the cycle's total budget, so the
+                  figure below is the budget less that carve-out — not the gross
+                  total the cycle was set up with. Only worth saying when a fund
+                  is actually configured. */}
+              {arcConfigured && (
+                <div className="text-[10px] text-muted-foreground mb-1">
+                  Total budget less the ARC carve-out
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <div className="text-[10px] uppercase text-muted-foreground">
@@ -218,6 +230,29 @@ export default async function AllocationPage({
               arcAllocated={arcAllocated}
               arcRemaining={arcRemaining}
             />
+
+            {/* WSU magic funds — a SINGLE figure, deliberately not the
+                Available/Allocated/Remaining triplet the other two panels use:
+                there is no configured pot to allocate against, so a three-cell
+                layout would imply a budget that doesn't exist. Neutral styling
+                (border-l-line) rather than a status colour, since status-funded
+                and status-review already mean other things elsewhere. */}
+            <div className="rounded-md border border-l-4 border-l-line p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                WSU Magic Funds
+              </div>
+              <div className="text-[10px] uppercase text-muted-foreground">
+                WSU contributes
+              </div>
+              <div className="text-xl font-extrabold tabular-nums">
+                {formatBudget(magicTotal)}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Salary benefits WSU covers, in proportion to the salary you move
+                to ARC. Paid by WSU directly — not WRAC money, and not part of
+                the pool.
+              </p>
+            </div>
           </div>
           {offcycle > 0 && (
             <div className="mt-2 text-sm">

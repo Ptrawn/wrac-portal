@@ -252,7 +252,10 @@ export default async function CommissionReportPage({
                   Main pool
                 </div>
                 <div className="report-summary text-sm">
-                  <span className="k">Total budget</span>
+                  {/* summary.total_budget is the pool NET of the ARC carve-out,
+                      not the cycle's gross total_budget column — the label has
+                      to say which, since both figures exist. */}
+                  <span className="k">Pool available (after ARC carve-out)</span>
                   <span className="v">
                     {formatBudget(summary?.total_budget ?? 0)}
                   </span>
@@ -282,6 +285,18 @@ export default async function CommissionReportPage({
                   <span className="k">ARC remaining</span>
                   <span className="v">
                     {formatBudget(summary?.arc_remaining ?? 0)}
+                  </span>
+                </div>
+                {/* WSU magic funds: a single figure, since there is no
+                    configured pot to allocate against. Paid by WSU directly, so
+                    it is reported outside both WRAC sources above. */}
+                <div className="text-sm font-semibold text-gray-700 mt-2">
+                  WSU Magic Funds (paid directly by WSU)
+                </div>
+                <div className="report-summary text-sm">
+                  <span className="k">Salary benefits covered by WSU</span>
+                  <span className="v">
+                    {formatBudget(summary?.magic_total ?? 0)}
                   </span>
                 </div>
               </>
