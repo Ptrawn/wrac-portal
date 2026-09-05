@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
 import {
+  CYCLE_STATUS_SEQUENCE,
   pacificDateToday,
   statusLabel,
   type Cycle,
@@ -136,6 +137,10 @@ export default async function CycleDetailPage({
     ).length,
   };
 
+  // Which stage the cycle is at, for the stepper on the fiscal-year row below.
+  // cycle.status is already typed CycleStatus, so no cast is needed.
+  const stageIdx = CYCLE_STATUS_SEQUENCE.indexOf(cycle.status);
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       <AppHeader email={email} />
@@ -177,13 +182,41 @@ export default async function CycleDetailPage({
             <CardTitle className="text-xl">Cycle Status</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <div className="text-sm">
-              <span className="text-muted-foreground">Fiscal year: </span>
-              {cycle.fiscal_year != null ? (
-                <span className="num font-medium">{cycle.fiscal_year}</span>
-              ) : (
-                <span className="text-destructive font-medium">not set</span>
-              )}
+            {/* Fiscal year left, stage stepper pushed right. ml-auto rather than
+                justify-between, so when the row wraps the fiscal year keeps its
+                natural width at the left instead of being stretched across. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <div className="text-sm">
+                <span className="text-muted-foreground">Fiscal year: </span>
+                {cycle.fiscal_year != null ? (
+                  <span className="num font-medium">{cycle.fiscal_year}</span>
+                ) : (
+                  <span className="text-destructive font-medium">not set</span>
+                )}
+              </div>
+
+              {/* Stage stepper. shrink-0 and no flex-wrap keep the nine pips on a
+                  single line, so the width cue still reads as a left-to-right
+                  sequence; on a very narrow viewport the strip scrolls inside its
+                  own box rather than overflowing the card. */}
+              <div className="ml-auto flex max-w-full shrink-0 gap-1.5 overflow-x-auto">
+                {CYCLE_STATUS_SEQUENCE.map((s, i) => (
+                  <span
+                    key={s}
+                    title={statusLabel(s)}
+                    className={
+                      // The current pip is set apart by WIDTH, not just opacity — in a
+                      // row of nine, an opacity step alone is hard to locate.
+                      "h-1.5 shrink-0 rounded-full " +
+                      (i < stageIdx
+                        ? "w-7 bg-foreground/40"
+                        : i === stageIdx
+                          ? "w-12 bg-foreground"
+                          : "w-7 bg-foreground/10")
+                    }
+                  />
+                ))}
+              </div>
             </div>
             <CycleStatusControl cycleId={id} status={cycle.status} />
           </CardContent>

@@ -63,25 +63,8 @@ export function CycleStatusControl({
         </span>
       </div>
 
-      {/* simple stepper */}
-      <div className="flex flex-wrap gap-1.5">
-        {CYCLE_STATUS_SEQUENCE.map((s, i) => (
-          <span
-            key={s}
-            title={statusLabel(s)}
-            className={
-              // The current pip is set apart by WIDTH, not just opacity — in a
-              // row of nine, an opacity step alone is hard to locate.
-              "h-1.5 rounded-full " +
-              (i < idx
-                ? "w-7 bg-foreground/40"
-                : i === idx
-                  ? "w-12 bg-foreground"
-                  : "w-7 bg-foreground/10")
-            }
-          />
-        ))}
-      </div>
+      {/* The stage stepper used to sit here; it now renders on the fiscal-year
+          row above this control, where it reads earlier in the page. */}
 
       {confirmingClose ? (
         <div className="flex flex-col gap-2">
