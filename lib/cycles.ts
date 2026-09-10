@@ -27,7 +27,11 @@ export type Cycle = {
   pre_review_due_at: string | null;
   full_proposal_due_at: string | null;
   full_review_due_at: string | null;
+  // Two status reports per funded project. The unnumbered column is the FIRST
+  // one's default due date (deliberately not renamed — every caller reads it);
+  // _2_ is the second's. Both seed reports of type 'status'.
   default_status_report_due_at: string | null;
+  default_status_report_2_due_at: string | null;
   default_final_report_due_at: string | null;
   created_at: string;
   updated_at: string;

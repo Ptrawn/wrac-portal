@@ -17,6 +17,7 @@ export type CycleInput = {
   full_proposal_due_at: string | null;
   full_review_due_at: string | null;
   default_status_report_due_at: string | null;
+  default_status_report_2_due_at: string | null;
   default_final_report_due_at: string | null;
 };
 
@@ -86,6 +87,7 @@ export async function updateCycle(
       full_proposal_due_at: input.full_proposal_due_at,
       full_review_due_at: input.full_review_due_at,
       default_status_report_due_at: input.default_status_report_due_at,
+      default_status_report_2_due_at: input.default_status_report_2_due_at,
       default_final_report_due_at: input.default_final_report_due_at,
     })
     .eq("id", id);

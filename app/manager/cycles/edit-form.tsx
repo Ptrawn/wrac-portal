@@ -34,6 +34,9 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
   const [defaultStatusDue, setDefaultStatusDue] = useState(
     orEmpty(cycle.default_status_report_due_at),
   );
+  const [defaultStatus2Due, setDefaultStatus2Due] = useState(
+    orEmpty(cycle.default_status_report_2_due_at),
+  );
   const [defaultFinalDue, setDefaultFinalDue] = useState(
     orEmpty(cycle.default_final_report_due_at),
   );
@@ -63,6 +66,7 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
         full_proposal_due_at: nullIfEmpty(fullDue),
         full_review_due_at: nullIfEmpty(fullReview),
         default_status_report_due_at: nullIfEmpty(defaultStatusDue),
+        default_status_report_2_due_at: nullIfEmpty(defaultStatus2Due),
         default_final_report_due_at: nullIfEmpty(defaultFinalDue),
       });
       if (res?.error) {
@@ -180,7 +184,7 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
         <div className="flex flex-col gap-4">
           <div className="grid gap-2">
             <Label htmlFor="default_status_report_due">
-              Default status report due
+              First status report due
             </Label>
             <Input
               id="default_status_report_due"
@@ -190,8 +194,19 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
             />
           </div>
           <div className="grid gap-2">
+            <Label htmlFor="default_status_report_2_due">
+              Second status report due
+            </Label>
+            <Input
+              id="default_status_report_2_due"
+              type="date"
+              value={defaultStatus2Due}
+              onChange={(e) => setDefaultStatus2Due(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="default_final_report_due">
-              Default final report due
+              Final report due
             </Label>
             <Input
               id="default_final_report_due"

@@ -104,6 +104,17 @@ export default async function ManagerReportsPage({
     documents: docsByReport.get(r.id) ?? [],
   }));
 
+  // Which report types each project already has in THIS cycle, so the request
+  // form can warn before creating a duplicate. Built from the reports already
+  // loaded above — no extra query needed, since that select carries project_id
+  // and type. Duplicates stay allowed; this is only a signal.
+  const existingByProject: Record<string, string[]> = {};
+  for (const r of rawReports) {
+    const list = existingByProject[r.project_id] ?? [];
+    if (!list.includes(r.type)) list.push(r.type);
+    existingByProject[r.project_id] = list;
+  }
+
   const { data: fundedData } = await supabase
     .from("proposals")
     .select(
@@ -151,7 +162,9 @@ export default async function ManagerReportsPage({
               cycleId={cycleId}
               fundedProjects={fundedProjects}
               defaultStatusDue={cycle.default_status_report_due_at}
+              defaultStatus2Due={cycle.default_status_report_2_due_at}
               defaultFinalDue={cycle.default_final_report_due_at}
+              existingByProject={existingByProject}
             />
           </CardContent>
         </Card>
