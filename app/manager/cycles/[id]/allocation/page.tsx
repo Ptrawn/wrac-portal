@@ -57,13 +57,14 @@ export default async function AllocationPage({
   if (!cycleData) notFound();
   const cycle = cycleData as Cycle;
 
-  const { data: summaryData } = await supabase.rpc("cycle_funding_summary", {
-    p_cycle_id: cycleId,
-  });
+  const { data: summaryData, error: summaryError } = await supabase.rpc(
+    "cycle_funding_summary",
+    { p_cycle_id: cycleId },
+  );
   const summary =
     (summaryData as CycleFundingSummary[] | null)?.[0] ?? null;
 
-  const { data: rowData } = await supabase.rpc(
+  const { data: rowData, error: rowError } = await supabase.rpc(
     "list_cycle_proposals_for_manager",
     { p_cycle_id: cycleId },
   );
@@ -138,8 +139,19 @@ export default async function AllocationPage({
   const fullRows = buildRows(["full"]);
   const offCycleRows = buildRows(["off_cycle"]);
 
+  // When the summary RPC fails, every figure it feeds must read "—", NOT 0:
+  // zero is a plausible real value, and a meeting projecting $0 remaining would
+  // act on it. money() and count() below are the only place that choice lives.
+  const summaryFailed = Boolean(summaryError) || summary == null;
+  const money = (v: number | string | null | undefined): string =>
+    summaryFailed ? "—" : formatBudget(v ?? 0);
+  const count = (v: number | undefined): string =>
+    summaryFailed ? "—" : String(v ?? 0);
+
   const remaining = summary ? Number(summary.remaining) : 0;
-  const overAllocated = remaining < 0;
+  // Never flag "over budget" off a failed read — that would be an alarm raised
+  // by missing data rather than by the numbers.
+  const overAllocated = !summaryFailed && remaining < 0;
   const decided = summary?.decided_count ?? 0;
   const undecided = summary?.undecided_count ?? 0;
   const offcycle = summary ? Number(summary.offcycle_allocated) : 0;
@@ -165,10 +177,21 @@ export default async function AllocationPage({
               {cycle.name} ({cycle.year}) — allocation
             </span>
             <span className="text-sm text-muted-foreground">
-              {statusLabel(cycle.status)} · {decided} of {decided + undecided}{" "}
-              decided
+              {statusLabel(cycle.status)} · {count(decided)} of{" "}
+              {count(summaryFailed ? undefined : decided + undecided)} decided
             </span>
           </div>
+
+          {/* One banner for the whole tally row. Every figure below reads "—"
+              when this fires, so the manager can see at a glance that the
+              numbers are missing rather than zero. */}
+          {summaryError && (
+            <p className="text-sm text-destructive mb-2">
+              Couldn&apos;t load the funding totals: {summaryError.message} — the
+              figures below are unavailable, not zero. Funding decisions still
+              save correctly.
+            </p>
+          )}
           <div className="grid gap-4 md:grid-cols-3">
             {/* Main pool tally (net of ARC) */}
             <div className="rounded-md border border-l-4 border-l-status-funded p-3">
@@ -190,7 +213,7 @@ export default async function AllocationPage({
                     Available
                   </div>
                   <div className="text-lg font-bold tabular-nums">
-                    {formatBudget(summary?.total_budget ?? 0)}
+                    {money(summary?.total_budget)}
                   </div>
                 </div>
                 <div>
@@ -198,7 +221,7 @@ export default async function AllocationPage({
                     Allocated
                   </div>
                   <div className="text-lg font-bold tabular-nums">
-                    {formatBudget(summary?.allocated ?? 0)}
+                    {money(summary?.allocated)}
                   </div>
                 </div>
                 <div
@@ -215,7 +238,7 @@ export default async function AllocationPage({
                       (overAllocated ? "text-destructive" : "text-status-funded")
                     }
                   >
-                    {formatBudget(summary?.remaining ?? 0)}
+                    {money(summary?.remaining)}
                   </div>
                   {overAllocated && (
                     <div className="text-[10px] text-destructive font-medium">
@@ -233,6 +256,9 @@ export default async function AllocationPage({
               arcTotal={arcTotal}
               arcAllocated={arcAllocated}
               arcRemaining={arcRemaining}
+              // Without this the ARC panel would show $0 beside two panels
+              // showing "—", which reads as a real zero.
+              unavailable={summaryFailed}
             />
 
             {/* WSU magic funds — a SINGLE figure, deliberately not the
@@ -249,7 +275,7 @@ export default async function AllocationPage({
                 WSU contributes
               </div>
               <div className="text-xl font-extrabold tabular-nums">
-                {formatBudget(magicTotal)}
+                {money(magicTotal)}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Salary benefits WSU covers, in proportion to the salary you move
@@ -264,7 +290,7 @@ export default async function AllocationPage({
                 Off-cycle allocated (separate source, not from the pool):
               </span>{" "}
               <span className="font-semibold">
-                {formatBudget(summary?.offcycle_allocated ?? 0)}
+                {money(summary?.offcycle_allocated)}
               </span>
             </div>
           )}
@@ -291,7 +317,20 @@ export default async function AllocationPage({
             through them. An empty group renders nothing; if BOTH are empty the
             single card below still gives the manager a signal rather than a gap
             between the tally header and the off-cycle section. */}
-        {continuationRows.length === 0 && fullRows.length === 0 ? (
+        {rowError ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Proposals</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Distinct from the empty state below: an empty list and a failed
+                  list looked identical, and this screen drives a live meeting. */}
+              <p className="text-sm text-destructive">
+                Couldn&apos;t load proposals: {rowError.message}
+              </p>
+            </CardContent>
+          </Card>
+        ) : continuationRows.length === 0 && fullRows.length === 0 ? (
           <Card>
             <CardHeader>
               <CardTitle className="text-xl">Proposals</CardTitle>

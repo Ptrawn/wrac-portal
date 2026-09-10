@@ -150,14 +150,16 @@ export default async function CommissionReportPage({
   if (!cycleData) notFound();
   const cycle = cycleData as Cycle;
 
-  const { data: summaryData } = await supabase.rpc("cycle_funding_summary", {
-    p_cycle_id: cycleId,
-  });
+  const { data: summaryData, error: summaryError } = await supabase.rpc(
+    "cycle_funding_summary",
+    { p_cycle_id: cycleId },
+  );
   const summary = (summaryData as CycleFundingSummary[] | null)?.[0] ?? null;
 
-  const { data: reportData } = await supabase.rpc("cycle_funding_report", {
-    p_cycle_id: cycleId,
-  });
+  const { data: reportData, error: reportError } = await supabase.rpc(
+    "cycle_funding_report",
+    { p_cycle_id: cycleId },
+  );
   // Serial + WSU/ARC fields aren't in the report RPC; read them directly
   // (manager RLS permits it), same pattern as the allocation tool.
   const { data: extraData } = await supabase
@@ -252,7 +254,16 @@ export default async function CommissionReportPage({
             <h3 className="text-base font-semibold border-b border-gray-300 pb-1">
               Summary
             </h3>
-            {arcActive ? (
+            {/* This document goes to the Commission. A failed summary rendering
+                as a page of $0 figures would be worse than no figures, so say
+                so instead — and say it in print too, not just on screen. */}
+            {summaryError ? (
+              <p className="text-sm text-destructive">
+                Couldn&apos;t load the funding summary: {summaryError.message}.
+                The totals below are unavailable — do not treat this copy as
+                final.
+              </p>
+            ) : arcActive ? (
               <>
                 {/* Main pool (net of ARC) and the WSU ARC fund, reported as two
                     distinct sources so the Commission sees each clearly. */}
@@ -340,7 +351,12 @@ export default async function CommissionReportPage({
             <h3 className="text-base font-semibold border-b border-gray-300 pb-1">
               Funded projects (annual pool)
             </h3>
-            {poolRows.length === 0 ? (
+            {reportError ? (
+              <p className="text-sm text-destructive">
+                Couldn&apos;t load the funded projects: {reportError.message}.
+                This table is incomplete — do not treat this copy as final.
+              </p>
+            ) : poolRows.length === 0 ? (
               <p className="text-sm text-gray-600">
                 No projects have been funded from the annual pool for this cycle.
               </p>

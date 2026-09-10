@@ -12,8 +12,10 @@ export type CycleProposalStats = {
   // Both from cycle_funding_summary, so this card and the allocation screen
   // cannot drift: poolAwarded is `allocated` (net of ARC, full + continuation
   // only) and offCycleAwarded is `offcycle_allocated` (a separate source).
-  poolAwarded: number;
-  offCycleAwarded: number;
+  // null when that RPC failed — rendered as "—", never as 0.
+  poolAwarded: number | null;
+  offCycleAwarded: number | null;
+  awardedUnavailable: boolean;
 };
 
 export type CycleReportStats = {
@@ -103,24 +105,35 @@ export function CycleStats({
           />
           <Stat
             label="Awarded from pool"
-            value={formatBudget(proposals.poolAwarded)}
-            tone="funded"
+            value={
+              proposals.awardedUnavailable
+                ? "—"
+                : formatBudget(proposals.poolAwarded)
+            }
+            tone={proposals.awardedUnavailable ? undefined : "funded"}
           />
-          {proposals.offCycleAwarded > 0 && (
+          {(proposals.offCycleAwarded ?? 0) > 0 && (
             <Stat
               label="Awarded off-cycle"
               value={formatBudget(proposals.offCycleAwarded)}
             />
           )}
         </div>
-        <p className="text-[10px] text-muted-foreground mt-1">
-          Requested is the gross ask across full, continuation and off-cycle
-          proposals. Awarded from pool is the draw on the annual pool — full and
-          continuation only, net of anything covered by the WSU ARC fund
-          {proposals.offCycleAwarded > 0
-            ? "; off-cycle awards come from a separate source and are shown apart."
-            : "."}
-        </p>
+        {proposals.awardedUnavailable ? (
+          <p className="text-[10px] text-destructive mt-1">
+            The awarded figures couldn&apos;t be loaded, so they show as
+            &mdash; rather than zero. Requested is unaffected.
+          </p>
+        ) : (
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Requested is the gross ask across full, continuation and off-cycle
+            proposals. Awarded from pool is the draw on the annual pool — full
+            and continuation only, net of anything covered by the WSU ARC fund
+            {(proposals.offCycleAwarded ?? 0) > 0
+              ? "; off-cycle awards come from a separate source and are shown apart."
+              : "."}
+          </p>
+        )}
       </div>
 
       <div>

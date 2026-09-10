@@ -23,12 +23,16 @@ export function ArcTally({
   arcTotal,
   arcAllocated,
   arcRemaining,
+  unavailable = false,
 }: {
   cycleId: string;
   configured: boolean;
   arcTotal: number;
   arcAllocated: number;
   arcRemaining: number;
+  // The funding-summary RPC failed, so these three numbers are meaningless.
+  // Show "—" rather than $0, which would read as a real balance.
+  unavailable?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -36,7 +40,8 @@ export function ArcTally({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const overAllocated = configured && arcRemaining < 0;
+  const overAllocated = configured && !unavailable && arcRemaining < 0;
+  const show = (v: number): string => (unavailable ? "—" : formatBudget(v));
 
   const save = (total: number | null) => {
     setError(null);
@@ -128,7 +133,7 @@ export function ArcTally({
               ARC total
             </div>
             <div className="text-lg font-bold tabular-nums">
-              {formatBudget(arcTotal)}
+              {show(arcTotal)}
             </div>
           </div>
           <div>
@@ -136,7 +141,7 @@ export function ArcTally({
               ARC allocated
             </div>
             <div className="text-lg font-bold tabular-nums">
-              {formatBudget(arcAllocated)}
+              {show(arcAllocated)}
             </div>
           </div>
           <div
@@ -153,7 +158,7 @@ export function ArcTally({
                 (overAllocated ? "text-destructive" : "text-status-funded")
               }
             >
-              {formatBudget(arcRemaining)}
+              {show(arcRemaining)}
             </div>
             {overAllocated && (
               <div className="text-[10px] text-destructive font-medium">

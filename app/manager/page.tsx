@@ -57,19 +57,27 @@ function AttentionTile({
   value,
   hint,
   attention,
+  unavailable = false,
 }: {
   href: string;
   label: string;
   value: number;
   hint: string;
   attention: boolean;
+  // The read behind this tile failed. Show "—" instead of a number (0 is a
+  // plausible real value, so rendering it on failure IS the bug), put the reason
+  // in the hint, and never light the amber attention state — amber claims "you
+  // have something to deal with", which is a different claim from "I don't
+  // know". Each tile carries its own flag, so one failure can't affect another.
+  unavailable?: boolean;
 }) {
+  const alert = attention && !unavailable;
   return (
     <Link href={href} className="block">
       <div
         className={
           "h-full rounded-lg border p-4 transition-colors hover:border-foreground/30 " +
-          (attention ? "border-status-review" : "")
+          (alert ? "border-status-review" : "")
         }
       >
         <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -78,12 +86,20 @@ function AttentionTile({
         <div
           className={
             "text-3xl font-bold tabular-nums mt-1 " +
-            (attention ? "text-status-review" : "")
+            (alert ? "text-status-review" : "")
           }
         >
-          {value}
+          {unavailable ? "—" : value}
         </div>
-        <div className="text-sm text-muted-foreground mt-1">{hint}</div>
+        <div
+          className={
+            unavailable
+              ? "text-sm text-destructive mt-1"
+              : "text-sm text-muted-foreground mt-1"
+          }
+        >
+          {hint}
+        </div>
       </div>
     </Link>
   );
@@ -99,7 +115,9 @@ export default async function ManagerPage() {
   // refreshes on the same window. (See the report notes on ordering.)
   await recordManagerVisit();
 
-  const { data: statsData } = await supabase.rpc("manager_dashboard_stats");
+  const { data: statsData, error: statsError } = await supabase.rpc(
+    "manager_dashboard_stats",
+  );
   const stats = (statsData as ManagerStats[] | null)?.[0] ?? {
     open_cycle_count: 0,
     pending_registration_count: 0,
@@ -113,11 +131,17 @@ export default async function ManagerPage() {
   );
   const researchers = (pendingData as PendingResearcher[] | null) ?? [];
 
-  const { data: tilesData } = await supabase.rpc("cycle_tiles_for_manager");
+  const { data: tilesData, error: tilesError } = await supabase.rpc(
+    "cycle_tiles_for_manager",
+  );
   const cycleTiles = (tilesData as CycleTile[] | null) ?? [];
 
   // The tile RPC doesn't carry fiscal_year; fetch it directly (manager RLS).
-  const { data: fyData } = await supabase
+  // This read's failure mode is the INVERSE of the others on this page: an
+  // empty map makes every cycle look like it has no fiscal year, so a broken
+  // query would raise a red alarm on every tile rather than quietly reassure.
+  // fyError is therefore tracked separately from "fetched and genuinely null".
+  const { data: fyData, error: fyError } = await supabase
     .from("cycles")
     .select("id, fiscal_year");
   const fiscalByCycle = new Map<string, number | null>(
@@ -126,7 +150,7 @@ export default async function ManagerPage() {
     ),
   );
 
-  const { data: progressData } = await supabase.rpc(
+  const { data: progressData, error: progressError } = await supabase.rpc(
     "committee_review_progress",
   );
   const progress = (progressData as ReviewProgress[] | null)?.[0] ?? {
@@ -135,14 +159,14 @@ export default async function ManagerPage() {
     outstanding_reviews: 0,
   };
 
-  const { data: memberData } = await supabase.rpc(
+  const { data: memberData, error: memberError } = await supabase.rpc(
     "committee_member_review_status",
   );
   const members = (memberData as MemberStatus[] | null) ?? [];
 
   // Outstanding reports across ALL cycles (closed included -- a closed cycle can
   // still owe reports), for the report-status tile.
-  const { data: outstandingReportData } = await supabase
+  const { data: outstandingReportData, error: reportReadError } = await supabase
     .from("reports")
     .select("due_date")
     .in("state", ["pending", "reopened"]);
@@ -158,7 +182,7 @@ export default async function ManagerPage() {
   // still under review matters as much as one rescinded today, and a window
   // would hide it. Direct table read + page-side filter, matching the past-due
   // reports tile below rather than extending an RPC.
-  const { data: rescindedData } = await supabase
+  const { data: rescindedData, error: rescindedError } = await supabase
     .from("proposals")
     .select("id, cycle_id, cycle:cycles(name, status)")
     .eq("state", "rescinded");
@@ -197,12 +221,21 @@ export default async function ManagerPage() {
       <div className="w-full max-w-4xl p-5 flex flex-col gap-8 mt-8">
         <div>
           <h1 className="text-2xl font-bold">Manager dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            {stats.open_cycle_count} open cycle
-            {stats.open_cycle_count === 1 ? "" : "s"} ·{" "}
-            {stats.committee_member_count} committee member
-            {stats.committee_member_count === 1 ? "" : "s"}
-          </p>
+          {/* Counts, not a figure with a "—" slot — so on failure this says what
+              broke instead of quietly reading "0 open cycles · 0 committee
+              members", which is a sentence a real dashboard could print. */}
+          {statsError ? (
+            <p className="text-sm text-destructive">
+              Couldn&apos;t load dashboard stats: {statsError.message}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {stats.open_cycle_count} open cycle
+              {stats.open_cycle_count === 1 ? "" : "s"} ·{" "}
+              {stats.committee_member_count} committee member
+              {stats.committee_member_count === 1 ? "" : "s"}
+            </p>
+          )}
         </div>
 
         {/* 1. Attention row */}
@@ -216,55 +249,70 @@ export default async function ManagerPage() {
               label="Pending registrations"
               value={stats.pending_registration_count}
               hint={
-                stats.pending_registration_count > 0
-                  ? "Awaiting your approval"
-                  : "All caught up"
+                statsError
+                  ? `Couldn't load: ${statsError.message}`
+                  : stats.pending_registration_count > 0
+                    ? "Awaiting your approval"
+                    : "All caught up"
               }
               attention={stats.pending_registration_count > 0}
+              unavailable={Boolean(statsError)}
             />
             <AttentionTile
               href="/manager/cycles"
               label="New submissions since last login"
               value={stats.submissions_since_last_seen}
               hint={
-                stats.submissions_since_last_seen > 0
-                  ? "Submitted while you were away"
-                  : "No new submissions"
+                statsError
+                  ? `Couldn't load: ${statsError.message}`
+                  : stats.submissions_since_last_seen > 0
+                    ? "Submitted while you were away"
+                    : "No new submissions"
               }
               attention={stats.submissions_since_last_seen > 0}
+              unavailable={Boolean(statsError)}
             />
             <AttentionTile
               href="#committee-status"
               label="Outstanding committee reviews"
               value={progress.outstanding_reviews}
               hint={
-                progress.outstanding_reviews > 0
-                  ? "Reviews not yet submitted"
-                  : "Committee is all caught up"
+                progressError
+                  ? `Couldn't load: ${progressError.message}`
+                  : progress.outstanding_reviews > 0
+                    ? "Reviews not yet submitted"
+                    : "Committee is all caught up"
               }
               attention={progress.outstanding_reviews > 0}
+              unavailable={Boolean(progressError)}
             />
             <AttentionTile
               href="/manager/reports"
               label="Past-due reports"
               value={pastDueReports}
               hint={
-                dueSoonReports > 0
-                  ? `${dueSoonReports} more due in the next 60 days`
-                  : "None due in the next 60 days"
+                reportReadError
+                  ? `Couldn't load: ${reportReadError.message}`
+                  : dueSoonReports > 0
+                    ? `${dueSoonReports} more due in the next 60 days`
+                    : "None due in the next 60 days"
               }
               attention={pastDueReports > 0}
+              unavailable={Boolean(reportReadError)}
             />
             <AttentionTile
               href={rescindedHref}
               label="Withdrawn by researcher"
               value={rescindedLive.length}
               hint={
-                rescindedLive.length > 0
-                  ? "Pulled from a live cycle — restore or tell the committee"
-                  : "None withdrawn"
+                rescindedError
+                  ? `Couldn't load: ${rescindedError.message}`
+                  : rescindedLive.length > 0
+                    ? "Pulled from a live cycle — restore or tell the committee"
+                    : "None withdrawn"
               }
               attention={rescindedLive.length > 0}
+              unavailable={Boolean(rescindedError)}
             />
           </div>
         </section>
@@ -303,7 +351,15 @@ export default async function ManagerPage() {
               </Button>
             </div>
           </div>
-          {cycleTiles.length === 0 ? (
+          {/* A list, not a figure — "—" would be meaningless here, so the
+              failure replaces the empty-state sentence instead. "No active
+              cycles" is a perfectly plausible thing for this page to say, which
+              is exactly why a broken read must not say it. */}
+          {tilesError ? (
+            <p className="text-sm text-destructive">
+              Couldn&apos;t load cycles: {tilesError.message}
+            </p>
+          ) : cycleTiles.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No active cycles. Create one to get started.
             </p>
@@ -352,7 +408,13 @@ export default async function ManagerPage() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground flex gap-4 mt-auto">
-                        {fy != null ? (
+                        {/* Three distinct states, not two: a real fiscal year,
+                            a genuinely missing one (red — it blocks opening
+                            pre-proposals), and one we simply couldn't read
+                            (muted — no claim either way). */}
+                        {fyError ? (
+                          <span>FY unavailable</span>
+                        ) : fy != null ? (
                           <span>FY {fy}</span>
                         ) : (
                           <span className="text-destructive">No fiscal year</span>
@@ -369,7 +431,15 @@ export default async function ManagerPage() {
         </section>
 
         {/* 3. Committee */}
-        <CommitteeReviewTile progress={progress} members={members} />
+        {/* Two reads feed this card; either failing makes its figures and its
+            per-member list untrustworthy, so report whichever broke. */}
+        <CommitteeReviewTile
+          progress={progress}
+          members={members}
+          unavailable={
+            progressError?.message ?? memberError?.message ?? null
+          }
+        />
       </div>
     </main>
   );

@@ -29,9 +29,15 @@ export type MemberStatus = {
 export function CommitteeReviewTile({
   progress,
   members,
+  unavailable = null,
 }: {
   progress: ReviewProgress;
   members: MemberStatus[];
+  // Message from whichever read failed. The Card still renders — the tile row
+  // anchors to #committee-status — but its contents are replaced, because
+  // "0 / 0 reviews submitted" and "everyone is up to date" are both things this
+  // card could truthfully say, so neither can be shown off a broken read.
+  unavailable?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const outstanding = progress.outstanding_reviews;
@@ -47,6 +53,13 @@ export function CommitteeReviewTile({
           </Button>
         </div>
       </CardHeader>
+      {unavailable ? (
+        <CardContent>
+          <p className="text-sm text-destructive">
+            Couldn&apos;t load committee review progress: {unavailable}
+          </p>
+        </CardContent>
+      ) : (
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-baseline gap-3">
           <span className="text-3xl font-bold tabular-nums">
@@ -118,6 +131,7 @@ export function CommitteeReviewTile({
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

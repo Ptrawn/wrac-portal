@@ -80,16 +80,14 @@ export default async function ManagerProposalsPage({
   const { data: summaryData } = await supabase.rpc("proposal_review_summary", {
     p_cycle_id: cycleId,
   });
-  const { data: candidateData } = await supabase.rpc(
+  const { data: candidateData, error: candidateError } = await supabase.rpc(
     "list_continuation_candidates",
     { p_cycle_id: cycleId },
   );
   // The net pool comes from the RPC rather than a local (gross - ARC)
   // subtraction, so this header and the allocation screen can't drift apart.
-  const { data: fundingSummaryData } = await supabase.rpc(
-    "cycle_funding_summary",
-    { p_cycle_id: cycleId },
-  );
+  const { data: fundingSummaryData, error: fundingSummaryError } =
+    await supabase.rpc("cycle_funding_summary", { p_cycle_id: cycleId });
   const fundingSummary =
     (fundingSummaryData as CycleFundingSummary[] | null)?.[0] ?? null;
   const candidates =
@@ -168,7 +166,7 @@ export default async function ManagerProposalsPage({
           <p className="text-sm text-muted-foreground mt-1">
             {rows.length} proposals · {submittedCount} submitted · total budget{" "}
             {formatBudget(cycle.total_budget)}
-            {cycle.arc_fund_total != null && (
+            {cycle.arc_fund_total != null && !fundingSummaryError && (
               <>
                 {" "}
                 (gross) · pool {formatBudget(fundingSummary?.total_budget ?? 0)}{" "}
@@ -176,6 +174,14 @@ export default async function ManagerProposalsPage({
               </>
             )}
           </p>
+          {/* The gross budget above comes from the cycle row and is still
+              correct; only the net pool figure is missing, so say which. */}
+          {fundingSummaryError && (
+            <p className="text-sm text-destructive mt-1">
+              Couldn&apos;t load the funding summary, so the net pool isn&apos;t
+              shown: {fundingSummaryError.message}
+            </p>
+          )}
           <div className="text-sm mt-2 flex items-center gap-2">
             <span className="text-muted-foreground">Sort:</span>
             <Link
@@ -202,7 +208,24 @@ export default async function ManagerProposalsPage({
           </div>
         </div>
 
-        <ContinuationCandidates cycleId={cycleId} candidates={candidates} />
+        {/* A failed candidates RPC used to render as "No projects are eligible",
+            which is indistinguishable from a genuinely empty list — the exact
+            confusion that cost diagnostic time. Show the failure instead. */}
+        {candidateError ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Continuation candidates</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-destructive">
+                Couldn&apos;t load continuation candidates:{" "}
+                {candidateError.message}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <ContinuationCandidates cycleId={cycleId} candidates={candidates} />
+        )}
 
         {rowError ? (
           <p className="text-sm text-destructive">

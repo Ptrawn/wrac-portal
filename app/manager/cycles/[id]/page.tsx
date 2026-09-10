@@ -102,10 +102,8 @@ export default async function CycleDetailPage({
   // allocation screen agree structurally rather than by two sums being kept in
   // step. `allocated` is net of arc_amount and excludes off-cycle, which is
   // reported separately below.
-  const { data: fundingSummaryData } = await supabase.rpc(
-    "cycle_funding_summary",
-    { p_cycle_id: id },
-  );
+  const { data: fundingSummaryData, error: fundingSummaryError } =
+    await supabase.rpc("cycle_funding_summary", { p_cycle_id: id });
   const fundingSummary =
     (fundingSummaryData as CycleFundingSummary[] | null)?.[0] ?? null;
 
@@ -124,11 +122,14 @@ export default async function CycleDetailPage({
     totalRequested: fundable
       .filter((p) => p.state === "submitted")
       .reduce((s, p) => s + num(p.requested_amount), 0),
-    // From the RPC — see the note above the call.
-    poolAwarded: fundingSummary ? num(fundingSummary.allocated) : 0,
+    // From the RPC — see the note above the call. null (not 0) when it failed,
+    // so the card can render "—": a real zero and a failed read must not look
+    // the same on a money figure.
+    poolAwarded: fundingSummary ? num(fundingSummary.allocated) : null,
     offCycleAwarded: fundingSummary
       ? num(fundingSummary.offcycle_allocated)
-      : 0,
+      : null,
+    awardedUnavailable: Boolean(fundingSummaryError) || fundingSummary == null,
   };
 
   const { data: statReportData } = await supabase
