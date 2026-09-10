@@ -10,7 +10,11 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
-import { formatBudget, type ReviewQuestion } from "@/lib/cycles";
+import {
+  formatBudget,
+  formatLongDate,
+  type ReviewQuestion,
+} from "@/lib/cycles";
 import {
   proposalStateLabel,
   proposalTypeLabel,
@@ -45,6 +49,7 @@ type DetailProposal = {
   funded_amount: number | string | null;
   funding_note: string | null;
   submitted_at: string | null;
+  withdrawn_at: string | null;
   serial_number: string | null;
   parent_proposal_id: string | null;
   cv_snapshot_path: string | null;
@@ -87,7 +92,7 @@ export default async function ManagerProposalDetailPage({
   const { data: proposalData } = await supabase
     .from("proposals")
     .select(
-      "id, title, type, state, outcome, cycle_id, project_id, year_number, requested_amount, funded_amount, funding_note, submitted_at, serial_number, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years, status, ended_at, ended_reason, nce_granted, nce_granted_at, nce_reason, nce_extended_to), cycle:cycles(name, year)",
+      "id, title, type, state, outcome, cycle_id, project_id, year_number, requested_amount, funded_amount, funding_note, submitted_at, withdrawn_at, serial_number, parent_proposal_id, cv_snapshot_path, late_submission_allowed, researcher:profiles!researcher_id(full_name, institution), project:projects(title, planned_years, status, ended_at, ended_reason, nce_granted, nce_granted_at, nce_reason, nce_extended_to), cycle:cycles(name, year)",
     )
     .eq("id", proposalId)
     .maybeSingle();
@@ -167,6 +172,21 @@ export default async function ManagerProposalDetailPage({
     .neq("state", "withdrawn")
     .maybeSingle();
   const childId = (childData as { id: string } | null)?.id ?? null;
+
+  // Withdrawn children, fetched separately BECAUSE the lookup above excludes
+  // them: without this the page reverts to looking exactly as it did before any
+  // invitation, so re-inviting reads as "it created a duplicate". A parent can
+  // have several — she withdrew twice on one proposal in testing — so this is a
+  // list, ordered newest first.
+  const { data: withdrawnChildData } = await supabase
+    .from("proposals")
+    .select("id, withdrawn_at")
+    .eq("parent_proposal_id", proposalId)
+    .eq("state", "withdrawn")
+    .order("withdrawn_at", { ascending: false });
+  const withdrawnChildren =
+    (withdrawnChildData as { id: string; withdrawn_at: string | null }[] | null) ??
+    [];
 
   let parent: { id: string; title: string } | null = null;
   if (proposal.parent_proposal_id) {
@@ -312,6 +332,34 @@ export default async function ManagerProposalDetailPage({
           </CardContent>
         </Card>
 
+        {/* Withdrawn -> explain. Same shape as the rescinded card below, but no
+            undo control: there is no un-withdraw RPC, and re-inviting from the
+            parent pre-proposal is the intended path back. */}
+        {proposal.state === "withdrawn" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Withdrawn</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm flex flex-col gap-1">
+                <span className="font-medium">
+                  This invitation was withdrawn
+                  {proposal.withdrawn_at
+                    ? ` on ${formatLongDate(proposal.withdrawn_at)}`
+                    : ""}
+                  .
+                </span>
+                <span className="text-muted-foreground">
+                  You withdrew it before the researcher started work, so they can
+                  no longer edit or submit it. It stays in the record. To invite
+                  them again, use the Invite button on the original
+                  pre-proposal.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Rescinded -> undo (manager correction) */}
         {proposal.state === "rescinded" && (
           <Card>
@@ -383,9 +431,14 @@ export default async function ManagerProposalDetailPage({
               type={proposal.type}
               state={proposal.state}
               outcome={proposal.outcome}
-              hasFullProposal={Boolean(childId)}
               childId={childId}
               parentProposalId={proposal.parent_proposal_id}
+              withdrawnCount={withdrawnChildren.length}
+              lastWithdrawnAt={
+                withdrawnChildren[0]?.withdrawn_at
+                  ? formatLongDate(withdrawnChildren[0].withdrawn_at)
+                  : null
+              }
             />
           </CardContent>
         </Card>

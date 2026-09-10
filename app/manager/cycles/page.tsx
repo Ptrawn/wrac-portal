@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
 import {
+  cycleYearsLine,
   formatBudget,
   formatDate,
   statusLabel,
@@ -63,16 +64,17 @@ export default async function CyclesPage() {
                 <Card className="hover:border-foreground/30 transition-colors">
                   <CardHeader>
                     <div className="flex items-center justify-between gap-3">
-                      <CardTitle className="text-lg">
-                        {cycle.name}{" "}
-                        <span className="text-muted-foreground font-normal">
-                          ({cycle.year})
-                        </span>
-                      </CardTitle>
+                      <CardTitle className="text-lg">{cycle.name}</CardTitle>
                       <Badge variant="secondary">
                         {statusLabel(cycle.status)}
                       </Badge>
                     </div>
+                    {/* The list she picks a cycle from is exactly where the
+                        fiscal year needs to be — it is the field that separates
+                        two same-stage cycles. */}
+                    <p className="text-sm text-muted-foreground">
+                      {cycleYearsLine(cycle)}
+                    </p>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-[10rem_1fr] gap-y-1 text-sm">

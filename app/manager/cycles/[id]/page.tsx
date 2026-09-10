@@ -15,6 +15,7 @@ import { requireManager } from "@/lib/auth/profile";
 import {
   CYCLE_STATUS_SEQUENCE,
   pacificDateToday,
+  cycleYearsLine,
   statusLabel,
   type Cycle,
   type DocumentRequirement,
@@ -181,6 +182,19 @@ export default async function CycleDetailPage({
               <Link href={`/manager/cycles/${id}/report`}>Funding report</Link>
             </Button>
           </div>
+        </div>
+
+        {/* This page is the hub every other cycle-scoped screen launches from,
+            and it had no heading at all — nothing on it said which cycle you
+            were in. */}
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold">{cycle.name}</h1>
+            <Badge variant="secondary">{statusLabel(cycle.status)}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {cycleYearsLine(cycle)}
+          </p>
         </div>
 
         {cycle.fiscal_year == null && (

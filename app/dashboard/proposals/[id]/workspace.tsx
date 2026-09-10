@@ -1200,6 +1200,21 @@ function RescindSection({
     );
   }
 
+  // The manager withdrew the invitation. Nothing else on this page says so, and
+  // nothing was ever sent to the researcher, so this line is their only account
+  // of why a draft they were invited to fill in has gone read-only.
+  if (state === "withdrawn") {
+    return (
+      <div className="border-t pt-4">
+        <p className="text-sm text-muted-foreground">
+          The program manager withdrew this invitation, so this draft is closed
+          and can no longer be edited or submitted. It stays in your history —
+          contact the program manager if you have questions.
+        </p>
+      </div>
+    );
+  }
+
   // Allow-list, mirroring rescind_proposal's own precondition. Written this way
   // (rather than excluding 'rescinded') so a future state value can't slip
   // through and render a button the RPC will refuse — which is exactly what

@@ -98,6 +98,27 @@ export const CYCLE_STATUS_SEQUENCE: CycleStatus[] = [
   "closed",
 ];
 
+/**
+ * The line that identifies WHICH cycle a page is scoped to, under the heading.
+ *
+ * Both numbers are LABELLED rather than shown as bare parentheticals. A cycle
+ * name often already ends in a year ("ARC Magic Cycle 2026"), so the old
+ * "{name} ({year})" put two unexplained numbers side by side and adding the
+ * fiscal year would have made three — with nothing saying which was which. The
+ * fiscal year is the field that actually separates two same-stage cycles, so it
+ * has to be legible, not just present.
+ *
+ * A null fiscal year reads "not set" plainly. It is NOT an alarm here: the cycle
+ * detail page already carries a dedicated warning for that, and a second red
+ * marker on every page would cry wolf.
+ */
+export function cycleYearsLine(cycle: {
+  year: number;
+  fiscal_year: number | null;
+}): string {
+  return `Cycle year ${cycle.year} · Fiscal year ${cycle.fiscal_year ?? "not set"}`;
+}
+
 export function statusLabel(status: string): string {
   return STATUS_LABELS[status as CycleStatus] ?? status;
 }

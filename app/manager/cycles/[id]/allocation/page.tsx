@@ -10,7 +10,12 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
-import { formatBudget, statusLabel, type Cycle } from "@/lib/cycles";
+import {
+  cycleYearsLine,
+  formatBudget,
+  statusLabel,
+  type Cycle,
+} from "@/lib/cycles";
 import { arcEligibleTotal } from "@/lib/proposals";
 import {
   type CycleFundingSummary,
@@ -172,11 +177,20 @@ export default async function AllocationPage({
       {/* Sticky tally header */}
       <div className="sticky top-0 z-20 w-full border-b bg-background">
         <div className="w-full max-w-5xl mx-auto p-4">
+          {/* This screen is projected in the funding meeting, and the cycle it
+              belongs to was the least prominent text on it. Promoted to a real
+              heading; the years line sits under it so the room can tell two
+              same-stage cycles apart at a glance. */}
           <div className="flex items-baseline justify-between gap-3 mb-2">
-            <span className="text-sm text-muted-foreground">
-              {cycle.name} ({cycle.year}) — allocation
-            </span>
-            <span className="text-sm text-muted-foreground">
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold truncate">
+                {cycle.name} — allocation
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                {cycleYearsLine(cycle)}
+              </p>
+            </div>
+            <span className="text-sm text-muted-foreground shrink-0">
               {statusLabel(cycle.status)} · {count(decided)} of{" "}
               {count(summaryFailed ? undefined : decided + undecided)} decided
             </span>

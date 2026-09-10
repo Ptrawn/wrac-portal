@@ -10,7 +10,12 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
-import { pacificDateToday, statusLabel, type Cycle } from "@/lib/cycles";
+import {
+  cycleYearsLine,
+  pacificDateToday,
+  statusLabel,
+  type Cycle,
+} from "@/lib/cycles";
 import { RequestReport, type FundedProject } from "./request-report";
 import { ReportsList, type ReportItem } from "./reports-list";
 
@@ -144,9 +149,10 @@ export default async function ManagerReportsPage({
           >
             ← Cycle
           </Link>
-          <h1 className="text-2xl font-bold mt-1">
-            {cycle.name} ({cycle.year}) — reports
-          </h1>
+          <h1 className="text-2xl font-bold mt-1">{cycle.name} — reports</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {cycleYearsLine(cycle)}
+          </p>
           <p className="text-sm text-muted-foreground mt-1">
             {statusLabel(cycle.status)} · {reports.length} report
             {reports.length === 1 ? "" : "s"}

@@ -102,7 +102,14 @@ function ProposalRow({
   return (
     <li>
       <Link href={`/dashboard/proposals/${p.id}`}>
-        <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
+        {/* Muted when the manager withdrew the invitation, so it doesn't sit in
+            the list looking like a draft still waiting on the researcher. */}
+        <div
+          className={
+            "border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1" +
+            (p.state === "withdrawn" ? " opacity-60" : "")
+          }
+        >
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 min-w-0">
               {p.serial_number && (

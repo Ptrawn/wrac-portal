@@ -19,18 +19,23 @@ export function ProposalDecisions({
   type,
   state,
   outcome,
-  hasFullProposal,
   childId,
   parentProposalId,
+  withdrawnCount = 0,
+  lastWithdrawnAt = null,
 }: {
   cycleId: string;
   proposalId: string;
   type: string;
   state: string;
   outcome: string | null;
-  hasFullProposal: boolean;
   childId: string | null;
   parentProposalId: string | null;
+  // Invitations issued from THIS pre-proposal and later withdrawn. The child
+  // lookup excludes them, so without this the page looks as it did before any
+  // invitation and re-inviting reads as a duplicate.
+  withdrawnCount?: number;
+  lastWithdrawnAt?: string | null;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +139,20 @@ export function ProposalDecisions({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* A withdrawn invitation leaves no other trace here — the child lookup
+          filters it out — so say so. The Invite button stays: re-inviting is
+          the intended path, and this line is what stops the new draft reading
+          as a duplicate. */}
+      {withdrawnCount > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {withdrawnCount === 1
+            ? "A previous invitation was withdrawn"
+            : `${withdrawnCount} previous invitations were withdrawn, the most recent`}
+          {lastWithdrawnAt ? ` on ${lastWithdrawnAt}` : ""}. Inviting again
+          creates a new draft; the withdrawn one stays in the record.
+        </p>
       )}
 
       {/* Invite full proposal */}

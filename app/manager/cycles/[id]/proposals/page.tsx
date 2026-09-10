@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireManager } from "@/lib/auth/profile";
-import { formatBudget, formatDate, statusLabel, type Cycle } from "@/lib/cycles";
+import {
+  cycleYearsLine,
+  formatBudget,
+  formatDate,
+  statusLabel,
+  type Cycle,
+} from "@/lib/cycles";
 import { proposalStateLabel, proposalTypeLabel } from "@/lib/proposals";
 import {
   formatAverage,
@@ -154,11 +160,12 @@ export default async function ManagerProposalsPage({
             </Link>
           </div>
           <div className="flex items-center justify-between gap-3 mt-1">
-            <h1 className="text-2xl font-bold">
-              {cycle.name} ({cycle.year}) — proposals
-            </h1>
+            <h1 className="text-2xl font-bold">{cycle.name} — proposals</h1>
             <Badge variant="secondary">{statusLabel(cycle.status)}</Badge>
           </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {cycleYearsLine(cycle)}
+          </p>
           {/* This page sits next to allocation work, so it shows both figures:
               the gross budget as entered, and the pool actually available after
               the ARC carve-out. The pool clause is omitted when no ARC fund is
@@ -264,7 +271,17 @@ export default async function ManagerProposalsPage({
                           <Link
                             href={`/manager/cycles/${cycleId}/proposals/${r.proposal_id}`}
                           >
-                            <div className="border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1">
+                            {/* A withdrawn row is muted, matching the
+                                researcher dashboard's treatment of a declined
+                                item — otherwise three near-identical rows for
+                                one project (two withdrawn, one live) differ
+                                only by a word in a grey badge. */}
+                            <div
+                              className={
+                                "border rounded-md p-3 hover:border-foreground/30 transition-colors flex flex-col gap-1" +
+                                (r.state === "withdrawn" ? " opacity-60" : "")
+                              }
+                            >
                               <div className="flex items-center justify-between gap-3">
                                 <span className="flex items-center gap-2 min-w-0">
                                   {r.serial_number && (
