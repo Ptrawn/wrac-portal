@@ -1170,6 +1170,10 @@ function SubmitSection({
   );
 }
 
+// The states rescind_proposal actually accepts. Kept beside the component that
+// gates on it so the two can't drift.
+const RESCINDABLE_STATES = ["draft", "reopened", "submitted"];
+
 function RescindSection({
   proposalId,
   state,
@@ -1182,8 +1186,25 @@ function RescindSection({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Rescinding is possible from draft/reopened/submitted (not once rescinded).
-  if (state === "rescinded") return null;
+  // Already withdrawn: no control, but say what that means and that it can be
+  // undone — otherwise the red "Rescinded" badge is a dead end.
+  if (state === "rescinded") {
+    return (
+      <div className="border-t pt-4">
+        <p className="text-sm text-muted-foreground">
+          You withdrew this proposal, so it is no longer under consideration. It
+          stays in your history — contact the program manager if that was a
+          mistake and you need it restored.
+        </p>
+      </div>
+    );
+  }
+
+  // Allow-list, mirroring rescind_proposal's own precondition. Written this way
+  // (rather than excluding 'rescinded') so a future state value can't slip
+  // through and render a button the RPC will refuse — which is exactly what
+  // happened when 'withdrawn' was added.
+  if (!RESCINDABLE_STATES.includes(state)) return null;
 
   const rescind = () => {
     setError(null);
@@ -1203,11 +1224,19 @@ function RescindSection({
           className="w-fit"
           onClick={() => setConfirming(true)}
         >
-          Rescind proposal
+          Withdraw proposal
         </Button>
       ) : (
         <div className="flex flex-col gap-2 text-sm">
-          <p>This withdraws your proposal. It will remain in your history.</p>
+          {/* Bridges the vocabulary: the action is "withdraw" everywhere a human
+              reads it, but the status it leaves behind still reads "Rescinded",
+              so say so before they meet the badge. */}
+          <p>
+            This withdraws your proposal — it will no longer be considered. It
+            stays in your history, shown as{" "}
+            <span className="font-medium">Rescinded</span>, and the program
+            manager can restore it if you change your mind.
+          </p>
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -1215,7 +1244,7 @@ function RescindSection({
               disabled={isPending}
               onClick={rescind}
             >
-              {isPending ? "Rescinding…" : "Yes, rescind"}
+              {isPending ? "Withdrawing…" : "Yes, withdraw"}
             </Button>
             <Button
               size="sm"

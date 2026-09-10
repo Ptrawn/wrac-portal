@@ -34,6 +34,12 @@ type ManagerStats = {
   total_submitted_open: number;
 };
 
+type RescindedRow = {
+  id: string;
+  cycle_id: string;
+  cycle: { name: string; status: string } | null;
+};
+
 type CycleTile = {
   cycle_id: string;
   name: string;
@@ -143,6 +149,36 @@ export default async function ManagerPage() {
   const outstandingReports =
     (outstandingReportData as { due_date: string | null }[] | null) ?? [];
 
+  // Proposals a researcher has withdrawn, in cycles that are still live (not
+  // setup or closed). Nothing else tells the manager this happened — the state
+  // just changes to a grey badge in a list — so a proposal can leave the review
+  // pool while the committee keeps reviewing it.
+  //
+  // Deliberately NOT time-windowed: one rescinded three weeks ago in a cycle
+  // still under review matters as much as one rescinded today, and a window
+  // would hide it. Direct table read + page-side filter, matching the past-due
+  // reports tile below rather than extending an RPC.
+  const { data: rescindedData } = await supabase
+    .from("proposals")
+    .select("id, cycle_id, cycle:cycles(name, status)")
+    .eq("state", "rescinded");
+  const rescindedLive = (
+    (rescindedData as unknown as RescindedRow[] | null) ?? []
+  ).filter(
+    (p) => p.cycle != null && !["setup", "closed"].includes(p.cycle.status),
+  );
+  const rescindedCycleIds = Array.from(
+    new Set(rescindedLive.map((p) => p.cycle_id)),
+  );
+  // Deep-link when they're all in one cycle (the common case — usually one live
+  // round), since landing on the cycle list and hunting for grey badges is what
+  // the tile exists to avoid. Fall back to the cycle list when several cycles
+  // are involved and no single destination is right.
+  const rescindedHref =
+    rescindedCycleIds.length === 1
+      ? `/manager/cycles/${rescindedCycleIds[0]}/proposals`
+      : "/manager/cycles";
+
   const today = pacificDateToday();
 
   const pastDueReports = outstandingReports.filter(
@@ -218,6 +254,17 @@ export default async function ManagerPage() {
                   : "None due in the next 60 days"
               }
               attention={pastDueReports > 0}
+            />
+            <AttentionTile
+              href={rescindedHref}
+              label="Withdrawn by researcher"
+              value={rescindedLive.length}
+              hint={
+                rescindedLive.length > 0
+                  ? "Pulled from a live cycle — restore or tell the committee"
+                  : "None withdrawn"
+              }
+              attention={rescindedLive.length > 0}
             />
           </div>
         </section>
