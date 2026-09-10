@@ -131,7 +131,11 @@ export default async function AllocationPage({
         };
       });
 
-  const poolRows = buildRows(["full", "continuation"]);
+  // Split by type so the screen follows the order the funding meeting runs in:
+  // continuing projects first, then new proposals. Each call sorts on its own,
+  // so every group is ranked independently.
+  const continuationRows = buildRows(["continuation"]);
+  const fullRows = buildRows(["full"]);
   const offCycleRows = buildRows(["off_cycle"]);
 
   const remaining = summary ? Number(summary.remaining) : 0;
@@ -283,26 +287,78 @@ export default async function AllocationPage({
           </Link>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">
-              Proposals (highest average first)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {poolRows.length === 0 ? (
+        {/* Continuations, then new full proposals — the order the meeting works
+            through them. An empty group renders nothing; if BOTH are empty the
+            single card below still gives the manager a signal rather than a gap
+            between the tally header and the off-cycle section. */}
+        {continuationRows.length === 0 && fullRows.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Proposals</CardTitle>
+            </CardHeader>
+            <CardContent>
               <p className="text-sm text-muted-foreground">
                 No submitted full or continuation proposals in this cycle.
               </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {poolRows.map((r) => (
-                  <DecisionRow key={r.proposal_id} cycleId={cycleId} row={r} />
-                ))}
-              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {continuationRows.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl">
+                    Continuations{" "}
+                    <span className="text-muted-foreground font-normal text-base">
+                      ({continuationRows.length})
+                    </span>
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Continuing projects, highest average review score first.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-3">
+                    {continuationRows.map((r) => (
+                      <DecisionRow
+                        key={r.proposal_id}
+                        cycleId={cycleId}
+                        row={r}
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+
+            {fullRows.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl">
+                    Full proposals{" "}
+                    <span className="text-muted-foreground font-normal text-base">
+                      ({fullRows.length})
+                    </span>
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    New proposals, highest average review score first.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-3">
+                    {fullRows.map((r) => (
+                      <DecisionRow
+                        key={r.proposal_id}
+                        cycleId={cycleId}
+                        row={r}
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
 
         {offCycleRows.length > 0 && (
           <Card>
