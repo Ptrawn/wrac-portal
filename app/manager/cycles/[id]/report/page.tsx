@@ -41,7 +41,11 @@ const REPORT_CSS = `
 
 @media print {
   .no-print { display: none !important; }
-  @page { margin: 1.6cm; }
+  /* Landscape: the project table has six nowrap columns (serial + five money
+     columns) that cannot compress, so portrait clipped its right edge. Letter
+     landscape less the 1.6cm margins gives ~935px of printable width against
+     that ~560px floor. */
+  @page { size: landscape; margin: 1.6cm; }
   html, body { background: #ffffff !important; }
   main { margin: 0 !important; padding: 0 !important; min-height: 0 !important; }
   .report-shell { margin: 0 !important; padding: 0 !important; max-width: none !important; }
@@ -208,7 +212,11 @@ export default async function CommissionReportPage({
         <AppHeader email={email} />
       </div>
 
-      <div className="report-shell w-full max-w-3xl p-5 flex flex-col gap-4 mt-8">
+      {/* max-w-5xl matches the allocation screen. The report doc keeps its own
+          padding — the "sheet of paper" framing is deliberate — so the table
+          gets ~894px, comfortably clear of its ~560px incompressible floor.
+          Print overrides this to max-width: none via !important. */}
+      <div className="report-shell w-full max-w-5xl p-5 flex flex-col gap-4 mt-8">
         <div className="no-print flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <Link
