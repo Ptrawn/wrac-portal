@@ -55,6 +55,9 @@ type OpenCycle = {
   id: string;
   name: string;
   year: number;
+  // Selected so the deadline check can be fed the real status rather than
+  // assuming it from the query's filter.
+  status: string;
   pre_proposal_closes_at: string | null;
 };
 
@@ -167,9 +170,9 @@ export default async function DashboardPage() {
 
   const supabase = await createClient();
 
-  const { data: openData } = await supabase
+  const { data: openData, error: openError } = await supabase
     .from("cycles")
-    .select("id, name, year, pre_proposal_closes_at")
+    .select("id, name, year, status, pre_proposal_closes_at")
     .eq("status", "pre_proposal_open")
     .order("year", { ascending: false });
   const openCycles = (openData as OpenCycle[] | null) ?? [];
@@ -215,6 +218,35 @@ export default async function DashboardPage() {
     }).canSubmit;
   };
 
+  // Whether a NEW pre-proposal could still be submitted in this cycle. Same rule
+  // submit_proposal enforces, applied to a proposal that doesn't exist yet:
+  // type 'pre', and no manager late-submission override (there is no row to
+  // carry one). The deadline is compared as a Pacific calendar date, so it stays
+  // inclusive to end of day Pacific exactly as the RPC does.
+  const openCycleEligibility = (cycle: OpenCycle) =>
+    computeSubmissionEligibility({
+      type: "pre",
+      cycleStatus: cycle.status,
+      preProposalClosesAt: cycle.pre_proposal_closes_at,
+      fullProposalDueAt: null,
+      lateSubmissionAllowed: false,
+      stagePhrase: cycleStagePhrase,
+      formatLongDate,
+      pacificToday,
+    });
+
+  // Pre-proposals the researcher already has in a given cycle, so an open cycle
+  // can say so before they start another. Rescinded and withdrawn ones are
+  // deliberately NOT counted: someone who pulled a proposal is legitimately
+  // starting over, and telling them they already have one would be wrong.
+  const myPreProposalsInCycle = (cycleId: string): ProposalWithCycle[] =>
+    preProposals.filter(
+      (p) =>
+        p.cycle_id === cycleId &&
+        p.state !== "rescinded" &&
+        p.state !== "withdrawn",
+    );
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       <AppHeader email={email} />
@@ -234,36 +266,74 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {openCycles.length === 0 ? (
+            {openError ? (
+              <p className="text-sm text-destructive">
+                Couldn&apos;t load open cycles: {openError.message}
+              </p>
+            ) : openCycles.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No cycles are open for submission right now.
               </p>
             ) : (
               <ul className="flex flex-col gap-3">
-                {openCycles.map((cycle) => (
-                  <li
-                    key={cycle.id}
-                    className="border rounded-md p-3 flex items-center justify-between gap-3"
-                  >
-                    <div className="text-sm">
-                      <div className="font-medium">
-                        {cycle.name}{" "}
-                        <span className="text-muted-foreground font-normal">
-                          ({cycle.year})
-                        </span>
+                {openCycles.map((cycle) => {
+                  const eligibility = openCycleEligibility(cycle);
+                  const mine = myPreProposalsInCycle(cycle.id);
+                  return (
+                    <li
+                      key={cycle.id}
+                      className="border rounded-md p-3 flex items-center justify-between gap-3"
+                    >
+                      <div className="text-sm">
+                        <div className="font-medium">
+                          {cycle.name}{" "}
+                          <span className="text-muted-foreground font-normal">
+                            ({cycle.year})
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          Pre-proposal deadline:{" "}
+                          {formatDate(cycle.pre_proposal_closes_at)}
+                        </div>
+                        {/* Starting a second pre-proposal in one cycle is allowed
+                            on purpose — a researcher may have two genuinely
+                            different projects. This is a signal, not a block. */}
+                        {mine.length === 1 ? (
+                          <div className="text-muted-foreground mt-1">
+                            You already started{" "}
+                            <Link
+                              href={`/dashboard/proposals/${mine[0].id}`}
+                              className="underline underline-offset-4"
+                            >
+                              {mine[0].title}
+                            </Link>{" "}
+                            in this cycle.
+                          </div>
+                        ) : mine.length > 1 ? (
+                          <div className="text-muted-foreground mt-1">
+                            You already have {mine.length} pre-proposals in this
+                            cycle, listed below.
+                          </div>
+                        ) : null}
                       </div>
-                      <div className="text-muted-foreground">
-                        Pre-proposal deadline:{" "}
-                        {formatDate(cycle.pre_proposal_closes_at)}
-                      </div>
-                    </div>
-                    <Button asChild size="sm">
-                      <Link href={`/dashboard/proposals/new?cycle=${cycle.id}`}>
-                        Start a pre-proposal
-                      </Link>
-                    </Button>
-                  </li>
-                ))}
+                      {eligibility.canSubmit ? (
+                        <Button asChild size="sm">
+                          <Link
+                            href={`/dashboard/proposals/new?cycle=${cycle.id}`}
+                          >
+                            Start a pre-proposal
+                          </Link>
+                        </Button>
+                      ) : (
+                        // Deadline gone by: keep the cycle visible and say why,
+                        // rather than hiding it and prompting "where did it go?".
+                        <p className="text-sm text-muted-foreground shrink-0 max-w-[15rem] text-right">
+                          {eligibility.message}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </CardContent>
