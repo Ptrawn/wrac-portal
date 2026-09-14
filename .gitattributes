@@ -1,0 +1,8 @@
+# Binary files: no line-ending conversion, no text diffs. With core.autocrlf
+# on, Git otherwise guesses from content, and a PDF with no NUL byte is
+# guessed as text, so any 0x0D bytes in its streams get rewritten on checkout.
+# Listed types are the binary ones this repo actually tracks.
+*.pdf binary
+*.png binary
+*.ico binary
+*.eps binary
