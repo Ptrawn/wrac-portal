@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { getUserAndProfile, homePathForProfile } from "@/lib/auth/profile";
 import { MANAGER_EMAIL, MANAGER_MAILTO } from "@/lib/contact";
-import { GUIDES_MAY_BE_STALE, guideForRole } from "@/lib/guides";
+import { guideForRole } from "@/lib/guides";
 
 /**
  * Role-appropriate user guide. Any signed-in user can reach it (it's linked
@@ -43,7 +43,7 @@ export default async function HelpPage() {
           </p>
         </div>
 
-        {GUIDES_MAY_BE_STALE && (
+        {guide.mayBeStale && (
           <div className="rounded-md border border-status-review/40 bg-status-review/5 p-3 text-sm">
             <span className="font-medium text-status-review">
               This guide is being updated.

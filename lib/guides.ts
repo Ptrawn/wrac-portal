@@ -13,7 +13,9 @@ import type { Profile } from "@/lib/auth/profile";
  * left publicly retrievable. Its `href` is null and the help page explains how
  * to get it instead.
  *
- * Replacing a guide today = drop a new PDF at the same path and deploy. When all
+ * Replacing a guide = add the new PDF, point its href below at it, and delete
+ * the old file. Filenames carry the guide's date, so the served version is
+ * obvious from the URL and a downloaded copy keeps it. When all
  * three guides are regenerated without credentials, we decide then whether to
  * keep serving from /public or move to a private 'guides' bucket (same shape as
  * the per-cycle proposal template: bucket + pointer + signed URL). Either way
@@ -27,6 +29,13 @@ export type Guide = {
   label: string;
   /** Who it's written for, for the help page heading. */
   audience: string;
+  /**
+   * Whether the guide predates features now in the portal. When true the help
+   * page shows a "being updated" notice instead of silently handing out stale
+   * instructions. Per guide, so a rewritten guide can drop the notice while an
+   * older one keeps it.
+   */
+  mayBeStale: boolean;
 };
 
 const MANAGER_GUIDE: Guide = {
@@ -35,29 +44,24 @@ const MANAGER_GUIDE: Guide = {
   href: null,
   label: "Program Manager guide",
   audience: "program manager",
+  // Not yet rewritten: predates the ARC fund, the second status report, batch
+  // report requests, allocation grouping and the report dashboard.
+  mayBeStale: true,
 };
 
 const RESEARCHER_GUIDE: Guide = {
-  href: "/guides/wrac-researcher-guide.pdf",
+  href: "/guides/WRAC-Researcher-Guide-9.14.26.pdf",
   label: "Researcher guide",
   audience: "researcher",
+  mayBeStale: false,
 };
 
 const COMMITTEE_GUIDE: Guide = {
-  href: "/guides/wrac-committee-guide.pdf",
+  href: "/guides/WRAC-Committee-Guide-9.14.26.pdf",
   label: "Committee member guide",
   audience: "committee member",
+  mayBeStale: false,
 };
-
-/**
- * TEMPORARY: the bundled PDFs predate fiscal years, proposal serial numbers, the
- * WSU ARC fund, selective review participation, the lifecycle corrections and
- * the report dashboard. Until regenerated guides are dropped in, the help page
- * says so rather than silently handing users stale instructions.
- *
- * TO REMOVE THE NOTICE: set this to false. That's the only change needed.
- */
-export const GUIDES_MAY_BE_STALE = true;
 
 /**
  * The guide for a profile. Falls back to the researcher guide for a pending or
