@@ -10,7 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { formatBudget, type DocumentRequirement } from "@/lib/cycles";
-import { arcEligibleTotal, type ProposalDocument } from "@/lib/proposals";
+import {
+  arcEligibleTotal,
+  proposalStateLabel,
+  type ProposalDocument,
+} from "@/lib/proposals";
 import { TemplateLink } from "@/components/template-link";
 import {
   endProject,
@@ -110,7 +114,8 @@ export function ProposalWorkspace(props: Props) {
     <div className="flex flex-col gap-8">
       {!editable && (
         <div className="bg-accent text-sm p-3 rounded-md">
-          This proposal is locked ({state}). It can no longer be edited.
+          This proposal is locked — status: {proposalStateLabel(state)}. It can
+          no longer be edited.
         </div>
       )}
 

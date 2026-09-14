@@ -32,6 +32,14 @@ const KINDS: { value: RequestKind; label: string; autoLabel: string }[] = [
   { value: "final", label: "Final report", autoLabel: "Final report" },
 ];
 
+// What the form opens on, and the label that kind fills in. Both the initial
+// state and onKindChange read the label from KINDS, so they can't drift.
+const DEFAULT_KIND: RequestKind = "status_1";
+
+function autoLabelFor(kind: RequestKind): string {
+  return KINDS.find((k) => k.value === kind)?.autoLabel ?? "";
+}
+
 function kindToType(kind: RequestKind): string {
   return kind === "final" ? "final" : "status";
 }
@@ -59,8 +67,8 @@ export function RequestReport({
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
-  const [kind, setKind] = useState<RequestKind>("status_1");
-  const [label, setLabel] = useState("");
+  const [kind, setKind] = useState<RequestKind>(DEFAULT_KIND);
+  const [label, setLabel] = useState(() => autoLabelFor(DEFAULT_KIND));
   // Whether the label still tracks the selected kind. Typing in the field turns
   // this off, so a manager's own wording is never overwritten.
   const [labelAuto, setLabelAuto] = useState(true);
@@ -82,7 +90,7 @@ export function RequestReport({
     setKind(next);
     setDueDate(defaultFor(next) ?? "");
     if (labelAuto) {
-      setLabel(KINDS.find((k) => k.value === next)?.autoLabel ?? "");
+      setLabel(autoLabelFor(next));
     }
   };
 

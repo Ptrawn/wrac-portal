@@ -91,7 +91,7 @@ export function ReviewWorkspace(props: Props) {
           <p className="text-muted-foreground">
             You&apos;re excluded from this proposal&apos;s scoring — you won&apos;t
             affect its total or its maximum possible. You can change your mind
-            until you submit or the review deadline passes.
+            any time until you submit.
           </p>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -116,8 +116,8 @@ export function ReviewWorkspace(props: Props) {
           <p className="text-muted-foreground">
             If you decline, you&apos;re removed from this proposal&apos;s scoring —
             you won&apos;t count toward its total or its maximum possible. Decline
-            if it&apos;s outside your expertise. You can change your mind until you
-            submit or the review deadline passes.
+            if it&apos;s outside your expertise. You can change your mind any time
+            until you submit.
           </p>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
