@@ -11,15 +11,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getUserAndProfile, homePathForProfile } from "@/lib/auth/profile";
+import { MANAGER_EMAIL, MANAGER_MAILTO } from "@/lib/contact";
 import { GUIDES_MAY_BE_STALE, guideForRole } from "@/lib/guides";
-
-// The program manager's address, shown on this page only. Kept as a constant so
-// the visible text and the mailto href can't drift apart, and the subject is
-// encoded rather than hand-escaped (it contains an em dash).
-const MANAGER_EMAIL = "JTarara@washingtonwine.org";
-const MANAGER_MAILTO = `mailto:${MANAGER_EMAIL}?subject=${encodeURIComponent(
-  "WRAC Research Portal — help request",
-)}`;
 
 /**
  * Role-appropriate user guide. Any signed-in user can reach it (it's linked

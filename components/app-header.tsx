@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { LogoutButton } from "@/components/logout-button";
 import { getUserAndProfile } from "@/lib/auth/profile";
+import { MANAGER_EMAIL, MANAGER_MAILTO } from "@/lib/contact";
 import { guideForRole } from "@/lib/guides";
 
 /**
@@ -59,6 +60,15 @@ export async function AppHeader({ email }: { email?: string | null }) {
           >
             User guide
           </Link>
+          {/* A mailto, so a plain <a> rather than <Link>; same treatment as the
+              guide link beside it. */}
+          <a
+            href={MANAGER_MAILTO}
+            className="text-white/80 underline underline-offset-4 hover:text-wa-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-wa-black rounded-sm"
+            title={`Email the program manager at ${MANAGER_EMAIL}`}
+          >
+            Need help?
+          </a>
           <LogoutButton />
         </div>
       </div>
