@@ -1128,8 +1128,14 @@ function SubmitSection({
           )}
           {!hasCv && (
             <p className="text-sm text-destructive">
-              You have no CV on file. Upload one on your profile before
-              submitting.
+              You have no CV on file. Upload one on{" "}
+              <Link
+                href="/dashboard/profile"
+                className="underline underline-offset-4 font-medium"
+              >
+                your profile
+              </Link>{" "}
+              before submitting.
             </p>
           )}
           {!allRequiredUploaded && (

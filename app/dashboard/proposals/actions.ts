@@ -295,8 +295,10 @@ export async function submitProposal(
     .single();
   if (!profile?.cv_path) {
     return {
+      // Named as a path rather than a link: this string is rendered as plain
+      // text in the workspace, so it has to be followable by reading it.
       error:
-        "You need a CV on file before submitting. Upload one on your profile, then try again.",
+        "You need a CV on file before submitting. Upload one on your profile page (Dashboard → Your profile), then try again.",
     };
   }
 

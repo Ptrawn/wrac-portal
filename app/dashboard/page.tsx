@@ -263,7 +263,36 @@ export default async function DashboardPage() {
             Welcome{profile.full_name ? `, ${profile.full_name}` : ""}
           </h1>
           <p className="text-sm text-muted-foreground">{profile.institution}</p>
+          {/* The profile page is where the CV lives, so the link belongs with
+              the identity block rather than buried among the proposal lists. */}
+          <Link
+            href="/dashboard/profile"
+            className="text-sm underline underline-offset-4 inline-block mt-1"
+          >
+            Your profile &amp; CV
+          </Link>
         </div>
+
+        {/* A missing CV blocks every submission, server-side as well as in the
+            UI. Surfaced here because a researcher could otherwise build an
+            entire draft before discovering it at the submit button. */}
+        {!profile.cv_path && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm flex flex-col gap-1">
+            <p className="font-medium">You have no CV on file.</p>
+            <p>
+              A CV is required before you can submit any proposal — the submit
+              button stays disabled without one. You can still start and save
+              drafts in the meantime.{" "}
+              <Link
+                href="/dashboard/profile"
+                className="underline underline-offset-4 font-medium"
+              >
+                Upload your CV
+              </Link>
+              .
+            </p>
+          </div>
+        )}
 
         <Card>
           <CardHeader>
