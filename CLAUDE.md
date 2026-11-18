@@ -1,7 +1,7 @@
 # Research Proposal Portal — Project Context
 
 ## What this is
-A web portal for the **Washington State Wine Commission — Research Advisory Committee**. Researchers register and submit research proposals; committee members review and score them; a program manager runs an annual funding cycle and recommends projects to the Commission. Full specification is in `docs/scope.md` — read it when working on any feature; this file is only the quick standing brief.
+A web portal for the **Washington State Wine Commission — Research Advisory Committee**. Researchers register and submit research proposals; committee members review and score them; a program manager runs an annual funding cycle and recommends projects to the Commission. Full specification is in `docs/wswc-research-portal-scope (1).md` — read it when working on any feature; this file is only the quick standing brief.
 
 ## Roles (three sign in; a fourth is output-only)
 - **Researcher** — self-registers, then must be approved by the Manager before doing anything. Account and history persist across years.
