@@ -44,3 +44,34 @@ export function formatPacificDate(
   // Defensive: an unknown month would come back containing the raw digits.
   return formatted === value || formatted === "—" ? null : formatted;
 }
+
+/**
+ * A timestamptz as a readable Pacific wall-clock time, e.g.
+ * "18 November 2026" -> "18 Nov 2026, 3:42 pm PT".
+ *
+ * The opposite problem from formatPacificDate: these ARE instants (email_log's
+ * created_at / sent_at), so the conversion has to happen in a real time zone
+ * rather than by string surgery. en-GB for day-month order, matching
+ * formatLongDate elsewhere in the app, and "PT" spelled out because a manager
+ * reading a send log needs to know which clock it is.
+ *
+ * Returns an em dash for a missing value: unlike an email body, a log table
+ * with a gap in it reads correctly.
+ */
+export function formatPacificDateTime(
+  value: string | null | undefined,
+): string {
+  if (!value) return "—";
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return value;
+  const shown = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Los_Angeles",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(at);
+  return `${shown} PT`;
+}

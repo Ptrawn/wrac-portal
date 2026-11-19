@@ -20,6 +20,8 @@
 //      reply reaches a person.
 import "server-only";
 
+import { portalUrl } from "./format";
+
 export type EmailAudience = "researcher" | "committee" | "manager";
 export type EmailKind = "event" | "reminder";
 
@@ -39,9 +41,46 @@ export type CatalogEntry = {
    * a typo like {deadlne} before it reaches a researcher.
    */
   allowedPlaceholders: string[];
+  /**
+   * A realistic value for every allowed placeholder, used by the manager's
+   * preview and by "send test to me". It has to cover allowedPlaceholders
+   * exactly: a placeholder with no sample renders as the error "No value
+   * supplied for {x}", which is what the manager would see instead of a
+   * preview. That self-reports, so this is not separately enforced here.
+   */
+  sampleVars: Record<string, string>;
   /** Days before the deadline to send. Reminder kinds only. */
   defaultReminderOffsets?: number[];
 };
+
+/**
+ * The pool the per-type samples are drawn from, so the same placeholder reads
+ * the same way in every preview. Dates are pre-formatted the way
+ * formatPacificDate renders them, since that is what the hooks pass in.
+ */
+const SAMPLE_VALUES = {
+  recipient_email: "manager@example.org",
+  recipient_name: "Dr. Sam Reviewer",
+  researcher_name: "Dr. Jane Sample",
+  proposal_title: "Powdery mildew resistance in Washington Riesling",
+  proposal_type: "full proposal",
+  cycle_name: "FY28 Research Cycle",
+  serial_number: "FY28-007",
+  stage_label: "Full proposal review",
+  review_due_date: "15 March 2027",
+  project_title: "Deficit irrigation in Red Mountain Cabernet",
+  report_type: "status",
+  portal_url: portalUrl(),
+} as const;
+
+/** Sample values for the named placeholders, in the order given. */
+function samples(
+  ...names: (keyof typeof SAMPLE_VALUES)[]
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const n of names) out[n] = SAMPLE_VALUES[n];
+  return out;
+}
 
 /**
  * BATCH 2: the six event-triggered types, plus the batch-1 self-test. The
@@ -58,6 +97,7 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
     defaultBody:
       "This is a test message from the WRAC Research Portal sent to {recipient_email}.",
     allowedPlaceholders: ["recipient_email"],
+    sampleVars: samples("recipient_email"),
   },
 
   // --------------------------------------------------------------------------
@@ -77,6 +117,7 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "Sign in: {portal_url}",
     ].join("\n"),
     allowedPlaceholders: ["researcher_name", "portal_url"],
+    sampleVars: samples("researcher_name", "portal_url"),
   },
   {
     key: "proposal_submitted",
@@ -104,6 +145,14 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "serial_number",
       "portal_url",
     ],
+    sampleVars: samples(
+      "researcher_name",
+      "proposal_title",
+      "proposal_type",
+      "cycle_name",
+      "serial_number",
+      "portal_url",
+    ),
   },
   {
     key: "invitation_withdrawn",
@@ -126,6 +175,12 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "cycle_name",
       "portal_url",
     ],
+    sampleVars: samples(
+      "researcher_name",
+      "proposal_title",
+      "cycle_name",
+      "portal_url",
+    ),
   },
 
   // --------------------------------------------------------------------------
@@ -153,6 +208,13 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "review_due_date",
       "portal_url",
     ],
+    sampleVars: samples(
+      "recipient_name",
+      "cycle_name",
+      "stage_label",
+      "review_due_date",
+      "portal_url",
+    ),
   },
 
   // --------------------------------------------------------------------------
@@ -179,6 +241,12 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "cycle_name",
       "portal_url",
     ],
+    sampleVars: samples(
+      "researcher_name",
+      "proposal_title",
+      "cycle_name",
+      "portal_url",
+    ),
   },
   {
     key: "report_submitted",
@@ -199,6 +267,12 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "report_type",
       "portal_url",
     ],
+    sampleVars: samples(
+      "researcher_name",
+      "project_title",
+      "report_type",
+      "portal_url",
+    ),
   },
 ];
 

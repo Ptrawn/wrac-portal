@@ -45,6 +45,20 @@ export type SendEmailInput = {
   dedupeKey?: string | null;
   /** What this email is about, so the log can be filtered by it later. */
   entity?: { type: string; id: string } | null;
+  /**
+   * A test the manager asked for from the System Email page, sent to their own
+   * address. Three deliberate differences from a normal send:
+   *
+   *   - the mode check is bypassed, so a type can be previewed end to end
+   *     before it is switched on;
+   *   - any dedupeKey is ignored, so a second test is never "duplicate";
+   *   - the subject is prefixed "[TEST] ", so a test can never be mistaken for
+   *     the real thing in an inbox or in the log.
+   *
+   * EMAIL_DELIVERY still decides whether it leaves the building: in log mode a
+   * test is logged like anything else.
+   */
+  test?: boolean;
 };
 
 type EmailMode = "off" | "auto";
@@ -155,7 +169,7 @@ async function deliverAndRecord(
  *
  * The decision order:
  *   unknown key              -> failed
- *   mode 'off'               -> skipped_off, nothing written
+ *   mode 'off' (unless test) -> skipped_off, nothing written
  *   render error             -> failed, with the reason in the log row
  *   dedupe_key already used  -> duplicate, nothing written
  *   mode 'auto', not live    -> logged (rendered, recorded, not sent)
@@ -169,7 +183,11 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
     vars = {},
     dedupeKey = null,
     entity = null,
+    test = false,
   } = input;
+
+  // A test must never collide with, or consume, a real send's dedupe key.
+  const effectiveDedupeKey = test ? null : dedupeKey;
 
   const entityType = entity?.type ?? null;
   const entityId = entity?.id ?? null;
@@ -218,9 +236,14 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
       if (row.subject_override) subject = row.subject_override;
       if (row.body_override) body = row.body_override;
     }
-    if (ALWAYS_AUTO_KEYS.includes(key)) mode = "auto";
+    if (ALWAYS_AUTO_KEYS.includes(key) || test) mode = "auto";
 
     if (mode === "off") return { outcome: "skipped_off" };
+
+    // Prefix the TEMPLATE, not the rendered line: "[TEST] " carries no braces,
+    // so it cannot affect what renderTemplate substitutes, and the log row then
+    // stores exactly the subject that was sent.
+    if (test) subject = `[TEST] ${subject}`;
 
     // Render both halves before anything is written or sent.
     const renderedSubject = renderTemplate(
@@ -253,11 +276,11 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
     }
 
     // Already sent once for this key? Nothing to do and nothing to record.
-    if (dedupeKey) {
+    if (effectiveDedupeKey) {
       const { data: existing } = await admin
         .from("email_log")
         .select("id")
-        .eq("dedupe_key", dedupeKey)
+        .eq("dedupe_key", effectiveDedupeKey)
         .maybeSingle();
       if (existing) return { outcome: "duplicate" };
     }
@@ -268,7 +291,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
       recipient_user_id: recipientUserId,
       subject: renderedSubject.text,
       body: renderedBody.text,
-      dedupe_key: dedupeKey,
+      dedupe_key: effectiveDedupeKey,
       entity_type: entityType,
       entity_id: entityId,
     };

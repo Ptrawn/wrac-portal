@@ -440,6 +440,26 @@ export default async function ManagerPage() {
             progressError?.message ?? memberError?.message ?? null
           }
         />
+
+        {/* 4. Portal settings — no counts to report, so a plain link row rather
+            than a tile. Nothing else on the dashboard would lead here. */}
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Portal settings
+          </h2>
+          <div className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm">
+              <div className="font-semibold">System Email</div>
+              <div className="text-muted-foreground">
+                Turn each notification on or off, edit its wording, and read the
+                send log.
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/manager/emails">System Email</Link>
+            </Button>
+          </div>
+        </section>
       </div>
     </main>
   );
