@@ -11,15 +11,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { requireManager } from "@/lib/auth/profile";
-import { catalogEntry } from "@/lib/email/catalog";
+import { catalogEntry, DAYS_AFTER_KEYS } from "@/lib/email/catalog";
+import { defaultOffsets, storedOffsets } from "@/lib/email/offsets";
 import { createClient } from "@/lib/supabase/server";
 import { AUDIENCE_HEADINGS } from "../shared";
+import { ReminderSchedule } from "./reminder-schedule";
 import { TemplateEditor } from "./template-editor";
 
 type SettingsRow = {
   mode: string;
   subject_override: string | null;
   body_override: string | null;
+  reminder_offsets: number[] | null;
 };
 
 export default async function EmailTypePage({
@@ -38,13 +41,18 @@ export default async function EmailTypePage({
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("email_settings")
-    .select("mode, subject_override, body_override")
+    .select("mode, subject_override, body_override, reminder_offsets")
     .eq("key", key)
     .maybeSingle();
   const row = data as SettingsRow | null;
 
   const on = row?.mode === "auto";
   const customized = Boolean(row?.subject_override || row?.body_override);
+
+  // The schedule in force, and whether it is the shipped default. Cleaned the
+  // same way the jobs clean it, so the form shows what would actually be used.
+  const stored = storedOffsets(row?.reminder_offsets);
+  const effectiveOffsets = stored ?? defaultOffsets(key);
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -83,6 +91,28 @@ export default async function EmailTypePage({
             Couldn&apos;t read the saved copy: {error.message}. The editor below
             is showing the default wording, which may not be what is stored.
           </p>
+        )}
+
+        {/* Reminders only: an event email has no schedule to set -- it fires
+            when the event happens. */}
+        {entry.kind === "reminder" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Schedule</CardTitle>
+              <CardDescription>
+                This is the portal-wide schedule. A cycle can override it on its
+                own page, for the reminders tied to a cycle deadline.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReminderSchedule
+                emailKey={entry.key}
+                current={effectiveOffsets}
+                isDefault={stored === null}
+                daysAfter={DAYS_AFTER_KEYS.includes(entry.key)}
+              />
+            </CardContent>
+          </Card>
         )}
 
         <Card>

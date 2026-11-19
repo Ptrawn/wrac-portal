@@ -22,8 +22,14 @@ import {
   type DocumentRequirement,
   type ReviewQuestion,
 } from "@/lib/cycles";
+import {
+  catalogEntry,
+  CYCLE_SCOPED_REMINDER_KEYS,
+} from "@/lib/email/catalog";
+import { defaultOffsets, storedOffsets } from "@/lib/email/offsets";
 import { type CycleFundingSummary } from "@/lib/reviews";
 import { EditCycleForm } from "../edit-form";
+import { CycleReminders, type CycleReminder } from "./cycle-reminders";
 import { CycleStats } from "./cycle-stats";
 import { CycleTemplate } from "./cycle-template";
 import { CycleStatusControl } from "./cycle-status";
@@ -153,6 +159,58 @@ export default async function CycleDetailPage({
         r.due_date < today,
     ).length,
   };
+
+  // Per-cycle reminder schedules. A missing row means this cycle follows the
+  // portal-wide schedule, which is what the component shows as "Default".
+  const { data: offsetData } = await supabase
+    .from("cycle_email_offsets")
+    .select("email_key, offsets")
+    .eq("cycle_id", id);
+  const offsetsByKey = new Map<string, number[] | null>(
+    ((offsetData as { email_key: string; offsets: number[] }[] | null) ?? []).map(
+      (r) => [r.email_key, storedOffsets(r.offsets)],
+    ),
+  );
+
+  // What "Default" means on this screen: the PORTAL-WIDE schedule this cycle
+  // would fall back to, which is the email_settings override when the manager
+  // has set one and the catalog's shipped value otherwise. Showing the catalog
+  // value here regardless would tell the manager a number the jobs would not
+  // actually use -- see resolveOffsets.
+  const { data: globalOffsetData } = await supabase
+    .from("email_settings")
+    .select("key, reminder_offsets")
+    .in("key", [...CYCLE_SCOPED_REMINDER_KEYS]);
+  const globalByKey = new Map<string, number[] | null>(
+    (
+      (globalOffsetData as
+        | { key: string; reminder_offsets: number[] | null }[]
+        | null) ?? []
+    ).map((r) => [r.key, storedOffsets(r.reminder_offsets)]),
+  );
+
+  // What each cycle-scoped reminder chases, so a row says which date it hangs
+  // off rather than leaving the manager to infer it from the label.
+  const REMINDER_DEADLINES: Record<string, string> = {
+    full_proposal_due: "Full-proposal due date",
+    review_due: "Pre-review and full-review due dates",
+    funding_meeting: "Funding meeting date",
+  };
+  const cycleReminders: CycleReminder[] = CYCLE_SCOPED_REMINDER_KEYS.flatMap(
+    (key) => {
+      const entry = catalogEntry(key);
+      if (!entry) return [];
+      return [
+        {
+          key,
+          label: entry.label,
+          deadlineLabel: REMINDER_DEADLINES[key] ?? "Cycle deadline",
+          defaultOffsets: globalByKey.get(key) ?? defaultOffsets(key),
+          cycleOffsets: offsetsByKey.get(key) ?? null,
+        },
+      ];
+    },
+  );
 
   // Which stage the cycle is at, for the stepper on the fiscal-year row below.
   // cycle.status is already typed CycleStatus, so no cast is needed.
@@ -288,8 +346,15 @@ export default async function CycleDetailPage({
               <Badge variant="secondary">{statusLabel(cycle.status)}</Badge>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-6">
             <EditCycleForm cycle={cycle} />
+            {/* A section of the edit area, but NOT part of the form above: it
+                writes cycle_email_offsets, so it keeps its own per-row saves
+                rather than riding on the cycle's single Save button. */}
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-semibold mb-3">Reminder emails</h3>
+              <CycleReminders cycleId={id} reminders={cycleReminders} />
+            </div>
           </CardContent>
         </Card>
 

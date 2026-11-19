@@ -19,7 +19,12 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import {
+  runFullProposalDueReminder,
+  runFundingMeetingReminder,
   runRegistrationSweep,
+  runReportDueReminder,
+  runReportOverdueReminder,
+  runReviewDueReminder,
   runSubmissionDeadlineSummary,
   type JobResult,
 } from "@/lib/email/jobs";
@@ -42,6 +47,14 @@ const JOBS: {
     name: "submission_deadline_summary",
     run: (today) => runSubmissionDeadlineSummary(today),
   },
+  // Deadline reminders. Order is cosmetic -- they share no state and each one
+  // re-reads what it needs -- but it keeps the response readable: the people
+  // being chased, then the committee, then the paperwork.
+  { name: "full_proposal_due", run: (today) => runFullProposalDueReminder(today) },
+  { name: "review_due", run: (today) => runReviewDueReminder(today) },
+  { name: "funding_meeting", run: (today) => runFundingMeetingReminder(today) },
+  { name: "report_due", run: (today) => runReportDueReminder(today) },
+  { name: "report_overdue", run: (today) => runReportOverdueReminder(today) },
 ];
 
 /**

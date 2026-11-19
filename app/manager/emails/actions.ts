@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { getUserAndProfile, homePathForProfile } from "@/lib/auth/profile";
-import { catalogEntry } from "@/lib/email/catalog";
+import { catalogEntry, DAYS_AFTER_KEYS } from "@/lib/email/catalog";
+import { validateOffsets } from "@/lib/email/offsets";
 import { renderTemplate } from "@/lib/email/render";
 import { sendEmail } from "@/lib/email/send";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -227,6 +228,62 @@ async function writeOverrides(
     .from("email_settings")
     .insert({ key, mode: "off", ...payload });
   return insertError?.message ?? null;
+}
+
+/**
+ * Store (or clear) the portal-wide reminder schedule for one type.
+ *
+ * `null` clears it to NULL rather than writing the default in -- same rule as
+ * the copy overrides, and for the same reason: a type left on the default
+ * should follow the default when the default changes, not freeze a copy of
+ * today's value.
+ *
+ * Validated here with the same rule the database CHECK enforces
+ * (public.valid_reminder_offsets), so the form cannot store what Postgres
+ * would refuse, and a client that skipped the form still cannot.
+ */
+export async function saveReminderOffsets(
+  key: string,
+  values: number[] | null,
+): Promise<Result> {
+  const guard = await requireManagerSession();
+  if (!guard.ok) return { error: guard.error };
+
+  const entry = catalogEntry(key);
+  if (!entry) return { error: `Unknown email type "${key}".` };
+  if (entry.kind !== "reminder") {
+    return { error: `${entry.label} is not a reminder, so it has no schedule.` };
+  }
+
+  let offsets: number[] | null = null;
+  if (values !== null) {
+    const checked = validateOffsets(values, DAYS_AFTER_KEYS.includes(key));
+    if (!checked.ok) return { error: checked.error };
+    offsets = checked.offsets;
+  }
+
+  const supabase = await createClient();
+  const stamp = { updated_by: guard.userId, updated_at: new Date().toISOString() };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("email_settings")
+    .update({ reminder_offsets: offsets, ...stamp })
+    .eq("key", key)
+    .select("key");
+  if (updateError) return { error: updateError.message };
+
+  if (!updated || updated.length === 0) {
+    // No row yet. Create one 'off', as writeOverrides does: setting a schedule
+    // must not switch a type on behind the manager's back.
+    const { error: insertError } = await supabase
+      .from("email_settings")
+      .insert({ key, mode: "off", reminder_offsets: offsets, ...stamp });
+    if (insertError) return { error: insertError.message };
+  }
+
+  revalidatePath("/manager/emails");
+  revalidatePath(`/manager/emails/${key}`);
+  return { ok: true };
 }
 
 export type TestSendResult = {

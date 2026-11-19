@@ -72,6 +72,13 @@ const SAMPLE_VALUES = {
   report_type: "status",
   institution: "Washington State University",
   deadline: "15 February 2027",
+  meeting_date: "2 March 2027",
+  // A PHRASE, not a number: the jobs compute it from today so a reminder that
+  // catches up late still tells the truth. See daysLeftPhrase in schedule.ts.
+  days_left: "in 7 days",
+  // A counted noun, because that is what the job passes: the template cannot
+  // pluralise, and "You have 1 still to complete" reads as a bug.
+  outstanding_count: "4 reviews",
   submitted_count: "14",
   draft_count: "3",
   portal_url: portalUrl(),
@@ -187,6 +194,111 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
     ),
   },
 
+  {
+    key: "full_proposal_due",
+    label: "Full proposal deadline approaching",
+    audience: "researcher",
+    kind: "reminder",
+    defaultReminderOffsets: [30, 7],
+    defaultSubject: "Full proposal due {days_left}: {cycle_name}",
+    defaultBody: [
+      "Hello {researcher_name},",
+      "",
+      "Your full proposal for {cycle_name} is due {days_left}, on {deadline}.",
+      "",
+      "Title: {proposal_title}",
+      "",
+      "It is still a draft. Nothing has been received until you submit it in the portal.",
+      "",
+      "Finish and submit: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "researcher_name",
+      "proposal_title",
+      "cycle_name",
+      "deadline",
+      "days_left",
+      "portal_url",
+    ],
+    sampleVars: samples(
+      "researcher_name",
+      "proposal_title",
+      "cycle_name",
+      "deadline",
+      "days_left",
+      "portal_url",
+    ),
+  },
+  {
+    key: "report_due",
+    label: "Report deadline approaching",
+    audience: "researcher",
+    kind: "reminder",
+    defaultReminderOffsets: [30, 7],
+    defaultSubject: "Report due {days_left}: {project_title}",
+    defaultBody: [
+      "Hello {researcher_name},",
+      "",
+      "Your {report_type} report is due {days_left}, on {deadline}.",
+      "",
+      "Project: {project_title}",
+      "",
+      "Submit it in the portal: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "researcher_name",
+      "project_title",
+      "report_type",
+      "deadline",
+      "days_left",
+      "portal_url",
+    ],
+    sampleVars: samples(
+      "researcher_name",
+      "project_title",
+      "report_type",
+      "deadline",
+      "days_left",
+      "portal_url",
+    ),
+  },
+  {
+    key: "report_overdue",
+    label: "Report overdue",
+    audience: "researcher",
+    kind: "reminder",
+    // The ONE reminder whose offset counts FORWARD: a single value meaning days
+    // AFTER the due date. Two values would have no meaning here, which is why
+    // the editor shows this type a single field.
+    defaultReminderOffsets: [2],
+    defaultSubject: "Overdue: {report_type} report for {project_title}",
+    defaultBody: [
+      "Hello {researcher_name},",
+      "",
+      "Your {report_type} report was due on {deadline} and has not been received.",
+      "",
+      "Project: {project_title}",
+      "",
+      "If something is holding it up, reply to this message and the program manager will follow up.",
+      "",
+      "Submit it in the portal: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "researcher_name",
+      "project_title",
+      "report_type",
+      "deadline",
+      "portal_url",
+    ],
+    sampleVars: samples(
+      "researcher_name",
+      "project_title",
+      "report_type",
+      "deadline",
+      "portal_url",
+    ),
+  },
+
   // --------------------------------------------------------------------------
   // Committee
   // --------------------------------------------------------------------------
@@ -217,6 +329,73 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "cycle_name",
       "stage_label",
       "review_due_date",
+      "portal_url",
+    ),
+  },
+
+  {
+    key: "review_due",
+    label: "Review deadline approaching",
+    audience: "committee",
+    kind: "reminder",
+    defaultReminderOffsets: [7, 2],
+    defaultSubject: "{stage_label} due {days_left}: {cycle_name}",
+    defaultBody: [
+      "Hello {recipient_name},",
+      "",
+      "{stage_label} for {cycle_name} closes {days_left}, on {deadline}.",
+      "",
+      "You have {outstanding_count} still to complete.",
+      "",
+      "Open your reviews: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "recipient_name",
+      "cycle_name",
+      "stage_label",
+      "deadline",
+      "days_left",
+      "outstanding_count",
+      "portal_url",
+    ],
+    sampleVars: samples(
+      "recipient_name",
+      "cycle_name",
+      "stage_label",
+      "deadline",
+      "days_left",
+      "outstanding_count",
+      "portal_url",
+    ),
+  },
+  {
+    key: "funding_meeting",
+    label: "Funding meeting approaching",
+    audience: "committee",
+    kind: "reminder",
+    defaultReminderOffsets: [7],
+    defaultSubject: "Funding meeting {days_left}: {cycle_name}",
+    defaultBody: [
+      "Hello {recipient_name},",
+      "",
+      "The funding meeting for {cycle_name} is {days_left}, on {meeting_date}.",
+      "",
+      "The committee allocates the year's funding at this meeting. Please read the proposals and scores beforehand.",
+      "",
+      "Open the portal: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "recipient_name",
+      "cycle_name",
+      "meeting_date",
+      "days_left",
+      "portal_url",
+    ],
+    sampleVars: samples(
+      "recipient_name",
+      "cycle_name",
+      "meeting_date",
+      "days_left",
       "portal_url",
     ),
   },
@@ -353,3 +532,24 @@ export function catalogEntry(key: string): CatalogEntry | null {
  * switch they are in the middle of configuring.
  */
 export const ALWAYS_AUTO_KEYS: readonly string[] = ["system_test"];
+
+/**
+ * The reminders whose deadline belongs to a CYCLE, and which can therefore be
+ * rescheduled per cycle on the cycle edit screen.
+ *
+ * The report reminders are deliberately absent: a report's due date is its
+ * own, set per report, so "this cycle's report reminders" would be a setting
+ * with no single deadline to hang off. They use the portal-wide schedule only.
+ */
+export const CYCLE_SCOPED_REMINDER_KEYS: readonly string[] = [
+  "full_proposal_due",
+  "review_due",
+  "funding_meeting",
+];
+
+/**
+ * The one reminder whose offset counts FORWARD from the date rather than back:
+ * a single value, meaning days after the due date. The editor shows it one
+ * field instead of two, and validation refuses a second value.
+ */
+export const DAYS_AFTER_KEYS: readonly string[] = ["report_overdue"];

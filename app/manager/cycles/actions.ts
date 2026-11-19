@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 
+import {
+  catalogEntry,
+  CYCLE_SCOPED_REMINDER_KEYS,
+} from "@/lib/email/catalog";
 import { formatPacificDate, portalUrl } from "@/lib/email/format";
+import { validateOffsets } from "@/lib/email/offsets";
 import { getApprovedCommitteeContacts } from "@/lib/email/recipients";
 import { sendEmail } from "@/lib/email/send";
 import { createClient } from "@/lib/supabase/server";
@@ -168,6 +173,65 @@ export async function getCycleTemplateUrl(
     .createSignedUrl(path, 60);
   if (error) return { error: error.message };
   return { url: data.signedUrl };
+}
+
+/**
+ * Set or clear one reminder's schedule for ONE cycle.
+ *
+ * `values === null` DELETES the row, which is how a cycle goes back to the
+ * portal-wide schedule. That is why cycle_email_offsets is the one table in
+ * this schema where a manager has DELETE: the row carries a preference, not a
+ * record, and "no row" is the meaningful way to say "no override".
+ *
+ * Validation is the same rule as the database CHECK
+ * (public.valid_reminder_offsets) and as the System Email page, so all three
+ * refuse the same values. RLS does the authorisation, as everywhere else in
+ * this file -- friendlyError turns its refusal into something readable.
+ */
+export async function setCycleReminderOffsets(
+  cycleId: string,
+  emailKey: string,
+  values: number[] | null,
+): Promise<{ error?: string; ok?: boolean }> {
+  const entry = catalogEntry(emailKey);
+  if (!entry || entry.kind !== "reminder") {
+    return { error: `"${emailKey}" is not a reminder email.` };
+  }
+  if (!CYCLE_SCOPED_REMINDER_KEYS.includes(emailKey)) {
+    return { error: `${entry.label} can't be scheduled per cycle.` };
+  }
+
+  const supabase = await createClient();
+
+  if (values === null) {
+    const { error } = await supabase
+      .from("cycle_email_offsets")
+      .delete()
+      .eq("cycle_id", cycleId)
+      .eq("email_key", emailKey);
+    if (error) return { error: friendlyError(error.message) };
+    revalidatePath(`/manager/cycles/${cycleId}`);
+    return { ok: true };
+  }
+
+  const checked = validateOffsets(values, false);
+  if (!checked.ok) return { error: checked.error };
+
+  const { data: userData } = await supabase.auth.getUser();
+  const { error } = await supabase.from("cycle_email_offsets").upsert(
+    {
+      cycle_id: cycleId,
+      email_key: emailKey,
+      offsets: checked.offsets,
+      updated_by: userData.user?.id ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "cycle_id,email_key" },
+  );
+  if (error) return { error: friendlyError(error.message) };
+
+  revalidatePath(`/manager/cycles/${cycleId}`);
+  return { ok: true };
 }
 
 /**

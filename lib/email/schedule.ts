@@ -77,3 +77,98 @@ export function isWithinDaysAfter(
   const since = daysSince(dateStr, todayStr);
   return since !== null && since >= 1 && since <= maxDays;
 }
+
+// ---------------------------------------------------------------------------
+// The reminder selection rule
+// ---------------------------------------------------------------------------
+
+/**
+ * Which reminder, if any, is due today for a deadline.
+ *
+ * Given a deadline D, a set of offsets O (days BEFORE D) and today T, an offset
+ * o is ELIGIBLE when `D - o <= T <= D`: its window has opened and the deadline
+ * has not passed. The SMALLEST eligible offset wins.
+ *
+ * Two consequences, both deliberate:
+ *
+ *   1. A MISSED REMINDER IS CAUGHT UP, NOT SKIPPED. If the cron does not run on
+ *      the 30-day mark, the 30-day reminder still goes out the next day it does
+ *      run -- its window stays open until the deadline. The email says "in 19
+ *      days" rather than "in 30", because the phrase is computed from today
+ *      (see daysLeftPhrase), so a late reminder is still TRUE.
+ *
+ *   2. A LARGER MISSED OFFSET IS NEVER SENT LATE ONCE A SMALLER ONE IS DUE.
+ *      Taking the smallest eligible offset means that once the 7-day window
+ *      opens, 7 is what sends. A recipient who has already had the near one
+ *      must not then receive the far one, which would read as going backwards.
+ *      Each offset still sends at most once, because the dedupe key carries it.
+ *
+ * Returns null when nothing is due: before the earliest window, or after D.
+ * A deadline that cannot be parsed is treated as "nothing due" rather than an
+ * error -- a malformed date must not stop the rest of the job.
+ */
+export function pickOffset(
+  deadline: string | null | undefined,
+  todayStr: CalendarDate,
+  offsets: readonly number[],
+): number | null {
+  const until = daysUntilDate(deadline ?? null, todayStr);
+  // until > 0 means the deadline is ahead; 0 is the deadline itself; negative
+  // means it has passed, and a passed deadline gets no "due soon" reminder.
+  if (until === null || until < 0) return null;
+
+  let best: number | null = null;
+  for (const o of offsets) {
+    if (!Number.isFinite(o) || o < 1) continue;
+    if (until <= o && (best === null || o < best)) best = o;
+  }
+  return best;
+}
+
+/**
+ * How long a reminder keeps chasing an overdue thing: the first send is n days
+ * after the due date, and the window closes 14 days after that.
+ *
+ * Bounded for the same reason the deadline summary is: without an upper bound,
+ * switching the type on would mail about every report that has ever been late.
+ * The dedupe key means only the first day inside the window actually sends; the
+ * width is there so a missed cron day does not lose the reminder entirely.
+ */
+export const OVERDUE_WINDOW_DAYS = 14;
+
+/**
+ * True when an overdue reminder is due today: at least `daysAfter` days past
+ * the due date, and no more than `daysAfter + OVERDUE_WINDOW_DAYS`.
+ */
+export function isOverdueDue(
+  dueDate: string | null | undefined,
+  todayStr: CalendarDate,
+  daysAfter: number,
+): boolean {
+  const since = daysSince(dueDate, todayStr);
+  if (since === null) return false;
+  return since >= daysAfter && since <= daysAfter + OVERDUE_WINDOW_DAYS;
+}
+
+/**
+ * How much time is left, as a phrase for an email body: "today", "tomorrow" or
+ * "in 12 days".
+ *
+ * Computed from TODAY, never from the offset that triggered the send. A 30-day
+ * reminder that catches up a week late must not tell the recipient they have 30
+ * days when they have 23 -- the whole point of the catch-up window is that the
+ * late message is still accurate.
+ *
+ * Returns null for an unparseable date, and for a deadline already past (no
+ * reminder in this family is sent then, so the caller has nothing to say).
+ */
+export function daysLeftPhrase(
+  deadline: string | null | undefined,
+  todayStr: CalendarDate,
+): string | null {
+  const until = daysUntilDate(deadline ?? null, todayStr);
+  if (until === null || until < 0) return null;
+  if (until === 0) return "today";
+  if (until === 1) return "tomorrow";
+  return `in ${until} days`;
+}
