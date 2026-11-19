@@ -27,6 +27,9 @@ export type Cycle = {
   pre_review_due_at: string | null;
   full_proposal_due_at: string | null;
   full_review_due_at: string | null;
+  // The committee's funding/allocation meeting. Recorded and displayed only —
+  // it gates no stage transition, which is why it carries no ordering CHECK.
+  funding_meeting_at: string | null;
   // Two status reports per funded project. The unnumbered column is the FIRST
   // one's default due date (deliberately not renamed — every caller reads it);
   // _2_ is the second's. Both seed reports of type 'status'.

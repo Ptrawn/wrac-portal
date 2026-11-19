@@ -51,7 +51,14 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname !== "/" &&
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
+    !request.nextUrl.pathname.startsWith("/auth") &&
+    // Scheduled jobs authenticate with an Authorization header, not a cookie.
+    // Redirecting them to the login page would turn every cron run into a 307
+    // to /auth/login, which Vercel Cron reports as a success. The route itself
+    // requires `Bearer ${CRON_SECRET}` and fails closed when that is unset --
+    // this exemption removes the redirect, not the guard. The trailing slash is
+    // deliberate: it exempts the /api/cron/ namespace and nothing adjacent.
+    !request.nextUrl.pathname.startsWith("/api/cron/")
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();

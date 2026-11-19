@@ -31,6 +31,9 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
   const [fullReview, setFullReview] = useState(
     orEmpty(cycle.full_review_due_at),
   );
+  const [fundingMeeting, setFundingMeeting] = useState(
+    orEmpty(cycle.funding_meeting_at),
+  );
   const [defaultStatusDue, setDefaultStatusDue] = useState(
     orEmpty(cycle.default_status_report_due_at),
   );
@@ -65,6 +68,7 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
         pre_review_due_at: nullIfEmpty(preReview),
         full_proposal_due_at: nullIfEmpty(fullDue),
         full_review_due_at: nullIfEmpty(fullReview),
+        funding_meeting_at: nullIfEmpty(fundingMeeting),
         default_status_report_due_at: nullIfEmpty(defaultStatusDue),
         default_status_report_2_due_at: nullIfEmpty(defaultStatus2Due),
         default_final_report_due_at: nullIfEmpty(defaultFinalDue),
@@ -171,6 +175,24 @@ export function EditCycleForm({ cycle }: { cycle: Cycle }) {
               value={fullReview}
               onChange={(e) => setFullReview(e.target.value)}
             />
+          </div>
+          {/* Last in the calendar because it is the last thing to happen, and
+              optional because the room is often booked after the deadlines are
+              set. Unlike the dates above it, this one gates no stage
+              transition — advanceBlockedReason never asks for it. */}
+          <div className="grid gap-2">
+            <Label htmlFor="funding_meeting">
+              Funding meeting date (optional)
+            </Label>
+            <Input
+              id="funding_meeting"
+              type="date"
+              value={fundingMeeting}
+              onChange={(e) => setFundingMeeting(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              The committee&apos;s deliberation and allocation meeting.
+            </p>
           </div>
         </div>
 

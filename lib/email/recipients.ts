@@ -20,6 +20,11 @@ export type UserContact = {
 
 export type CommitteeContact = UserContact & { userId: string };
 
+export type PendingResearcherContact = CommitteeContact & {
+  /** profiles.institution, nullable. Callers need a fallback phrase. */
+  institution: string | null;
+};
+
 /** Address + name for one user, or null if either lookup fails. */
 export async function getUserContact(
   userId: string,
@@ -81,6 +86,56 @@ export async function getApprovedCommitteeContacts(): Promise<
     );
 
     return resolved.filter((c): c is CommitteeContact => c !== null);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Every researcher waiting on the manager's decision: role 'researcher' AND
+ * status 'pending'. 'rejected' is a decision already taken and is excluded.
+ *
+ * The address is fetched per row, as in getApprovedCommitteeContacts, and a row
+ * whose auth user has no address is skipped. Unlike the committee, this list is
+ * unbounded in principle -- but the sweep that uses it only ever mails the
+ * MANAGER, once per researcher, deduped forever, so a long list costs lookups
+ * rather than a flood of email. The address is carried because it is the
+ * fallback when a registration has no full_name yet.
+ */
+export async function getPendingResearcherContacts(): Promise<
+  PendingResearcherContact[]
+> {
+  try {
+    const admin = createAdminClient();
+
+    const { data, error } = await admin
+      .from("profiles")
+      .select("id, full_name, institution")
+      .eq("role", "researcher")
+      .eq("status", "pending");
+    if (error || !data) return [];
+
+    const rows = data as {
+      id: string;
+      full_name: string | null;
+      institution: string | null;
+    }[];
+    const resolved = await Promise.all(
+      rows.map(async (row) => {
+        const { data: authData } = await admin.auth.admin.getUserById(row.id);
+        const email = authData?.user?.email ?? null;
+        return email
+          ? {
+              userId: row.id,
+              email,
+              fullName: row.full_name,
+              institution: row.institution,
+            }
+          : null;
+      }),
+    );
+
+    return resolved.filter((c): c is PendingResearcherContact => c !== null);
   } catch {
     return [];
   }

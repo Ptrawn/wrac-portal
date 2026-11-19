@@ -30,6 +30,7 @@ export type CycleInput = {
   pre_review_due_at: string | null;
   full_proposal_due_at: string | null;
   full_review_due_at: string | null;
+  funding_meeting_at: string | null;
   default_status_report_due_at: string | null;
   default_status_report_2_due_at: string | null;
   default_final_report_due_at: string | null;
@@ -100,6 +101,7 @@ export async function updateCycle(
       pre_review_due_at: input.pre_review_due_at,
       full_proposal_due_at: input.full_proposal_due_at,
       full_review_due_at: input.full_review_due_at,
+      funding_meeting_at: input.funding_meeting_at,
       default_status_report_due_at: input.default_status_report_due_at,
       default_status_report_2_due_at: input.default_status_report_2_due_at,
       default_final_report_due_at: input.default_final_report_due_at,

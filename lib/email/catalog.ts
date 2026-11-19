@@ -70,6 +70,10 @@ const SAMPLE_VALUES = {
   review_due_date: "15 March 2027",
   project_title: "Deficit irrigation in Red Mountain Cabernet",
   report_type: "status",
+  institution: "Washington State University",
+  deadline: "15 February 2027",
+  submitted_count: "14",
+  draft_count: "3",
   portal_url: portalUrl(),
 } as const;
 
@@ -273,6 +277,66 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
       "report_type",
       "portal_url",
     ),
+  },
+  {
+    key: "registration_pending",
+    label: "New researcher awaiting approval (to manager)",
+    audience: "manager",
+    // 'event' even though the daily sweep sends it: 'reminder' in this catalog
+    // means a countdown to a deadline, driven by reminder_offsets, and this is
+    // a one-off notice that someone is waiting. The dedupe key is what makes it
+    // one-off -- the sweep runs daily and the second day finds it already sent.
+    kind: "event",
+    defaultSubject: "New researcher awaiting approval: {researcher_name}",
+    defaultBody: [
+      "{researcher_name} has registered on the Washington State Wine Commission research portal and is waiting for approval.",
+      "",
+      "Institution: {institution}",
+      "",
+      "Until the account is approved they cannot see open cycles or submit a proposal.",
+      "",
+      "Review the registration: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: ["researcher_name", "institution", "portal_url"],
+    sampleVars: samples("researcher_name", "institution", "portal_url"),
+  },
+  {
+    key: "submission_deadline_summary",
+    label: "Submission deadline passed — summary (to manager)",
+    audience: "manager",
+    kind: "event",
+    defaultSubject: "{stage_label} deadline has passed for {cycle_name}",
+    defaultBody: [
+      "The {stage_label} deadline for {cycle_name} was {deadline}.",
+      "",
+      "Submitted: {submitted_count}",
+      "Started but not submitted: {draft_count}",
+      "",
+      "A proposal left unsubmitted is still a draft in the researcher's hands — nothing has been received for it.",
+      "",
+      "Open the cycle: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "cycle_name",
+      "stage_label",
+      "deadline",
+      "submitted_count",
+      "draft_count",
+      "portal_url",
+    ],
+    sampleVars: {
+      ...samples(
+        "cycle_name",
+        "deadline",
+        "submitted_count",
+        "draft_count",
+        "portal_url",
+      ),
+      // NOT the pooled stage_label: that one is a REVIEW stage ("Full proposal
+      // review"), and this email names a SUBMISSION stage. Sharing the pool
+      // value would preview a sentence the job never sends.
+      stage_label: "Full proposal",
+    },
   },
 ];
 

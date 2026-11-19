@@ -16,6 +16,7 @@ import {
   CYCLE_STATUS_SEQUENCE,
   pacificDateToday,
   cycleYearsLine,
+  formatLongDate,
   statusLabel,
   type Cycle,
   type DocumentRequirement,
@@ -246,6 +247,22 @@ export default async function CycleDetailPage({
                   />
                 ))}
               </div>
+            </div>
+            {/* The funding meeting read-only, because it is the date someone
+                opens this page to look up. Every other cycle date is only
+                visible inside the edit form below, which is the right place to
+                CHANGE one but a poor place to read one. formatLongDate rather
+                than the raw column, so it reads the same here as in the
+                emails. */}
+            <div className="text-sm">
+              <span className="text-muted-foreground">Funding meeting: </span>
+              {cycle.funding_meeting_at ? (
+                <span className="font-medium">
+                  {formatLongDate(cycle.funding_meeting_at)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">not set</span>
+              )}
             </div>
             <CycleStatusControl cycleId={id} status={cycle.status} />
           </CardContent>
