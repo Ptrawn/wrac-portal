@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
+import { portalUrl } from "@/lib/email/format";
+import { getUserContact } from "@/lib/email/recipients";
+import { sendEmail } from "@/lib/email/send";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function friendly(message: string): string {
@@ -69,6 +74,48 @@ export async function withdrawInvitation(
     p_id: proposalId,
   });
   if (error) return { error: friendly(error.message) };
+
+  // Withdrawn. The researcher had an invitation and a draft that have just
+  // disappeared from their dashboard, so they are told why. withdraw_invitation
+  // sets state='withdrawn' rather than deleting, so the row is still readable.
+  after(async () => {
+    const admin = createAdminClient();
+    const { data: proposalRow } = await admin
+      .from("proposals")
+      .select("title, cycle_id, researcher_id")
+      .eq("id", proposalId)
+      .single();
+    if (!proposalRow) return;
+    const p = proposalRow as {
+      title: string;
+      cycle_id: string;
+      researcher_id: string;
+    };
+
+    const { data: cycleRow } = await admin
+      .from("cycles")
+      .select("name")
+      .eq("id", p.cycle_id)
+      .single();
+
+    const contact = await getUserContact(p.researcher_id);
+    if (!contact) return;
+
+    await sendEmail({
+      key: "invitation_withdrawn",
+      to: contact.email,
+      recipientUserId: p.researcher_id,
+      vars: {
+        researcher_name: contact.fullName ?? contact.email,
+        proposal_title: p.title,
+        cycle_name: (cycleRow as { name: string } | null)?.name ?? "this cycle",
+        portal_url: portalUrl(),
+      },
+      dedupeKey: `invitation_withdrawn:${proposalId}`,
+      entity: { type: "proposal", id: proposalId },
+    });
+  });
+
   revalidate(cycleId, proposalId);
   if (parentProposalId) {
     revalidatePath(`/manager/cycles/${cycleId}/proposals/${parentProposalId}`);

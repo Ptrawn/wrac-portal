@@ -8,6 +8,16 @@
 //
 // Adding an entry does NOT start sending it. A type with no email_settings row
 // is treated as mode 'off' until a manager turns it on.
+//
+// WRITING THE COPY. Three rules the defaults follow:
+//   1. Only placeholders the hook can ALWAYS fill. renderTemplate refuses to
+//      send a body with a missing value, so an optional field in the default
+//      copy would turn into a silent failure the day it is null. Where a value
+//      is nullable in the schema, the hook substitutes a readable phrase.
+//   2. Every body ends with the portal link. These emails are notices, not
+//      conversations; the useful thing is a way in.
+//   3. No "do not reply" line. Reply-To is the program manager's address, so a
+//      reply reaches a person.
 import "server-only";
 
 export type EmailAudience = "researcher" | "committee" | "manager";
@@ -34,10 +44,9 @@ export type CatalogEntry = {
 };
 
 /**
- * BATCH 1 holds exactly one entry: a self-test the manager can fire at their
- * own address to prove the SendGrid path end to end without involving a
- * researcher. The real types (approval, advancement, funding, reminders --
- * see scope doc section 8) arrive in batch 2.
+ * BATCH 2: the six event-triggered types, plus the batch-1 self-test. The
+ * deadline reminders (scope doc section 8) are still to come and need a
+ * scheduler, which does not exist yet.
  */
 export const EMAIL_CATALOG: CatalogEntry[] = [
   {
@@ -49,6 +58,147 @@ export const EMAIL_CATALOG: CatalogEntry[] = [
     defaultBody:
       "This is a test message from the WRAC Research Portal sent to {recipient_email}.",
     allowedPlaceholders: ["recipient_email"],
+  },
+
+  // --------------------------------------------------------------------------
+  // Researcher
+  // --------------------------------------------------------------------------
+  {
+    key: "researcher_approved",
+    label: "Researcher account approved",
+    audience: "researcher",
+    kind: "event",
+    defaultSubject: "Your WRAC portal account has been approved",
+    defaultBody: [
+      "Hello {researcher_name},",
+      "",
+      "Your account on the Washington State Wine Commission research portal has been approved. You can now sign in to see open funding cycles and submit a proposal.",
+      "",
+      "Sign in: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: ["researcher_name", "portal_url"],
+  },
+  {
+    key: "proposal_submitted",
+    label: "Proposal submitted (confirmation to researcher)",
+    audience: "researcher",
+    kind: "event",
+    defaultSubject: "Proposal received: {proposal_title}",
+    defaultBody: [
+      "Hello {researcher_name},",
+      "",
+      "We have received your {proposal_type} for {cycle_name}.",
+      "",
+      "Title: {proposal_title}",
+      "Reference: {serial_number}",
+      "",
+      "Nothing further is needed from you now. You will hear from the Research Advisory Committee once your submission has been reviewed.",
+      "",
+      "View your submission: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "researcher_name",
+      "proposal_title",
+      "proposal_type",
+      "cycle_name",
+      "serial_number",
+      "portal_url",
+    ],
+  },
+  {
+    key: "invitation_withdrawn",
+    label: "Full-proposal invitation withdrawn",
+    audience: "researcher",
+    kind: "event",
+    defaultSubject: "Invitation withdrawn: {proposal_title}",
+    defaultBody: [
+      "Hello {researcher_name},",
+      "",
+      "The invitation to submit a proposal for {proposal_title} in {cycle_name} has been withdrawn, and that draft is no longer available in the portal.",
+      "",
+      "If this is unexpected, reply to this message and the program manager will follow up.",
+      "",
+      "Portal: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "researcher_name",
+      "proposal_title",
+      "cycle_name",
+      "portal_url",
+    ],
+  },
+
+  // --------------------------------------------------------------------------
+  // Committee
+  // --------------------------------------------------------------------------
+  {
+    key: "review_stage_opened",
+    label: "Review stage opened (to committee)",
+    audience: "committee",
+    kind: "event",
+    defaultSubject: "{stage_label} is open for {cycle_name}",
+    defaultBody: [
+      "Hello {recipient_name},",
+      "",
+      "{stage_label} is now open for {cycle_name}. Please read and score each proposal in your review queue.",
+      "",
+      "Reviews are due by {review_due_date}.",
+      "",
+      "Start reviewing: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "recipient_name",
+      "cycle_name",
+      "stage_label",
+      "review_due_date",
+      "portal_url",
+    ],
+  },
+
+  // --------------------------------------------------------------------------
+  // Manager
+  // --------------------------------------------------------------------------
+  {
+    key: "proposal_rescinded",
+    label: "Proposal withdrawn by researcher (to manager)",
+    audience: "manager",
+    kind: "event",
+    defaultSubject: "Proposal withdrawn: {proposal_title}",
+    defaultBody: [
+      "{researcher_name} has withdrawn a proposal from {cycle_name}.",
+      "",
+      "Title: {proposal_title}",
+      "",
+      "The proposal and its history stay on file, and the withdrawal can be reversed in the portal if it was a mistake.",
+      "",
+      "Open the portal: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "researcher_name",
+      "proposal_title",
+      "cycle_name",
+      "portal_url",
+    ],
+  },
+  {
+    key: "report_submitted",
+    label: "Report submitted (to manager)",
+    audience: "manager",
+    kind: "event",
+    defaultSubject: "New {report_type} report submitted: {project_title}",
+    defaultBody: [
+      "{researcher_name} has submitted a {report_type} report.",
+      "",
+      "Project: {project_title}",
+      "",
+      "Read it in the portal: {portal_url}",
+    ].join("\n"),
+    allowedPlaceholders: [
+      "researcher_name",
+      "project_title",
+      "report_type",
+      "portal_url",
+    ],
   },
 ];
 

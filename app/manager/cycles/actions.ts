@@ -2,9 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
+import { formatPacificDate, portalUrl } from "@/lib/email/format";
+import { getApprovedCommitteeContacts } from "@/lib/email/recipients";
+import { sendEmail } from "@/lib/email/send";
 import { createClient } from "@/lib/supabase/server";
 import { CYCLE_STATUS_SEQUENCE, type Cycle, type CycleStatus } from "@/lib/cycles";
+
+/**
+ * The two cycle statuses that open a review round, and how each reads to a
+ * reviewer. Entering either is what the committee gets told about; the other
+ * seven statuses are internal bookkeeping they do not need mail for.
+ */
+const REVIEW_STAGE_LABELS: Partial<Record<CycleStatus, string>> = {
+  pre_review: "Pre-proposal review",
+  full_review: "Full proposal review",
+};
 
 export type CycleInput = {
   name: string;
@@ -234,6 +248,47 @@ export async function setCycleStatus(
     .update({ status: target })
     .eq("id", id);
   if (error) return { error: friendlyError(error.message) };
+
+  // The status change stuck. If it OPENED a review round, tell the committee.
+  //
+  // Forward only: stepping back out of pre_review and forward into it again
+  // must not re-mail everyone, which is also why the dedupe key carries the
+  // stage and the member -- it makes the second pass a no-op per person.
+  const stageLabel = REVIEW_STAGE_LABELS[target as CycleStatus];
+  if (stageLabel && targetIdx === currentIdx + 1) {
+    const stage = target as CycleStatus;
+    // advanceBlockedReason already refused the move without a due date set, so
+    // this is non-null on every path that reaches here.
+    const dueDate = formatPacificDate(
+      stage === "pre_review" ? cycle.pre_review_due_at : cycle.full_review_due_at,
+    );
+
+    after(async () => {
+      const contacts = await getApprovedCommitteeContacts();
+      // Concurrent, and allSettled: one member whose send fails must not stop
+      // the rest of the committee from being told the round is open. Each send
+      // already writes its own log row, so a rejection here needs no handling
+      // beyond not propagating.
+      await Promise.allSettled(
+        contacts.map((member) =>
+          sendEmail({
+            key: "review_stage_opened",
+            to: member.email,
+            recipientUserId: member.userId,
+            vars: {
+              recipient_name: member.fullName ?? member.email,
+              cycle_name: cycle.name,
+              stage_label: stageLabel,
+              review_due_date: dueDate ?? "the date shown in the portal",
+              portal_url: portalUrl(),
+            },
+            dedupeKey: `review_stage_opened:${id}:${stage}:${member.userId}`,
+            entity: { type: "cycle", id },
+          }),
+        ),
+      );
+    });
+  }
 
   revalidatePath(`/manager/cycles/${id}`);
   revalidatePath("/manager/cycles");

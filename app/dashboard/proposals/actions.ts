@@ -2,7 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
+import { portalUrl } from "@/lib/email/format";
+import {
+  getManagerNotificationAddress,
+  getUserContact,
+} from "@/lib/email/recipients";
+import { sendEmail } from "@/lib/email/send";
+import { proposalTypeLabel } from "@/lib/proposals";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { stageForProposalType } from "@/lib/reviews";
 
@@ -333,6 +342,61 @@ export async function submitProposal(
   });
   if (rpcError) return { error: friendly(rpcError.message) };
 
+  // Submitted. Confirm it to the researcher, after the response. Everything the
+  // email needs is read here, not above: submit_proposal assigns the serial
+  // number, so it only exists once the RPC has succeeded.
+  after(async () => {
+    const admin = createAdminClient();
+    const { data: proposalRow } = await admin
+      .from("proposals")
+      .select("title, type, serial_number, cycle_id, submitted_at")
+      .eq("id", proposalId)
+      .single();
+    if (!proposalRow) return;
+    const p = proposalRow as {
+      title: string;
+      type: string;
+      serial_number: string | null;
+      cycle_id: string;
+      submitted_at: string | null;
+    };
+
+    const { data: cycleRow } = await admin
+      .from("cycles")
+      .select("name")
+      .eq("id", p.cycle_id)
+      .single();
+
+    const contact = await getUserContact(uid);
+    if (!contact) return;
+
+    await sendEmail({
+      key: "proposal_submitted",
+      to: contact.email,
+      recipientUserId: uid,
+      vars: {
+        researcher_name: contact.fullName ?? contact.email,
+        proposal_title: p.title,
+        // Lower-cased: the label reads mid-sentence ("your full proposal").
+        proposal_type: proposalTypeLabel(p.type).toLowerCase(),
+        cycle_name: (cycleRow as { name: string } | null)?.name ?? "this cycle",
+        // submit_proposal always sets this, and keeps the original on a
+        // resubmission -- the fallback is belt-and-braces, not an expected path.
+        serial_number: p.serial_number ?? "not yet assigned",
+        portal_url: portalUrl(),
+      },
+      // The timestamp is part of the key on purpose. A proposal the manager
+      // reopens and the researcher resubmits is a new submission and earns a
+      // fresh confirmation; a plain per-proposal key would suppress it as a
+      // duplicate. submit_proposal always stamps submitted_at, so the fallback
+      // is only there to keep a send from being skipped if it somehow did not.
+      dedupeKey: p.submitted_at
+        ? `proposal_submitted:${proposalId}:${p.submitted_at}`
+        : `proposal_submitted:${proposalId}`,
+      entity: { type: "proposal", id: proposalId },
+    });
+  });
+
   revalidatePath(`/dashboard/proposals/${proposalId}`);
   revalidatePath("/dashboard");
   return { ok: true };
@@ -365,6 +429,47 @@ export async function rescindProposal(
   const supabase = await createClient();
   const { error } = await supabase.rpc("rescind_proposal", { p_id: proposalId });
   if (error) return { error: friendly(error.message) };
+
+  // Withdrawn. The manager needs to know a proposal left the pool, since it
+  // changes what there is to review and allocate. rescind_proposal only sets
+  // the state, so the row is still here to read.
+  after(async () => {
+    const to = await getManagerNotificationAddress();
+    if (!to) return;
+
+    const admin = createAdminClient();
+    const { data: proposalRow } = await admin
+      .from("proposals")
+      .select("title, cycle_id, researcher_id")
+      .eq("id", proposalId)
+      .single();
+    if (!proposalRow) return;
+    const p = proposalRow as {
+      title: string;
+      cycle_id: string;
+      researcher_id: string;
+    };
+
+    const { data: cycleRow } = await admin
+      .from("cycles")
+      .select("name")
+      .eq("id", p.cycle_id)
+      .single();
+    const contact = await getUserContact(p.researcher_id);
+
+    await sendEmail({
+      key: "proposal_rescinded",
+      to,
+      vars: {
+        researcher_name: contact?.fullName ?? contact?.email ?? "A researcher",
+        proposal_title: p.title,
+        cycle_name: (cycleRow as { name: string } | null)?.name ?? "an open cycle",
+        portal_url: portalUrl(),
+      },
+      dedupeKey: `proposal_rescinded:${proposalId}`,
+      entity: { type: "proposal", id: proposalId },
+    });
+  });
 
   revalidatePath(`/dashboard/proposals/${proposalId}`);
   revalidatePath("/dashboard");
