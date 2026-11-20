@@ -127,11 +127,13 @@ export async function getProposalReviews(
 
   const { data: memberData } = await supabase
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, status")
     .eq("role", "committee")
     .order("full_name", { ascending: true });
-  const members =
-    (memberData as { id: string; full_name: string | null }[] | null) ?? [];
+  const allMembers =
+    (memberData as
+      | { id: string; full_name: string | null; status: string }[]
+      | null) ?? [];
 
   const { data: reviewData } = await supabase
     .from("reviews")
@@ -150,6 +152,14 @@ export async function getProposalReviews(
       }[];
     }[] | null) ?? [];
   const byReviewer = new Map(reviews.map((r) => [r.reviewer_id, r]));
+
+  // Same headcount rule as the scoring grid: an ACTIVE committee member, or
+  // anyone who reviewed THIS proposal. A former member's comments stay readable
+  // on the proposals they reviewed; they stop appearing as an empty row
+  // everywhere else.
+  const members = allMembers.filter(
+    (m) => m.status === "approved" || byReviewer.has(m.id),
+  );
 
   const result: CommentReview[] = members.map((member) => {
     const review = byReviewer.get(member.id) ?? null;

@@ -132,11 +132,45 @@ export default async function ManagerProposalsPage({
     }),
   );
 
-  const { count: committeeCount } = await supabase
+  // Headcount rule, shared with the scoring grid and the allocation comments:
+  // a member counts for a proposal if they are an ACTIVE committee member, or
+  // they have a review row on THAT proposal. So the denominator is per
+  // proposal, not one number for the whole list -- a member who has since
+  // cycled off still counts on the proposals they actually reviewed, and the
+  // list stops reading "7 of 16" forever after four members leave.
+  const { data: committeeData } = await supabase
     .from("profiles")
-    .select("id", { count: "exact", head: true })
+    .select("id, status")
     .eq("role", "committee");
-  const totalReviewers = committeeCount ?? 0;
+  const committee =
+    (committeeData as { id: string; status: string }[] | null) ?? [];
+  const activeReviewerCount = committee.filter(
+    (m) => m.status === "approved",
+  ).length;
+  const formerIds = new Set(
+    committee.filter((m) => m.status !== "approved").map((m) => m.id),
+  );
+
+  // Only former members need looking up per proposal; active ones count
+  // everywhere. With no former members this query is skipped entirely.
+  const formerByProposal = new Map<string, Set<string>>();
+  const proposalIds = rows.map((r) => r.proposal_id);
+  if (formerIds.size > 0 && proposalIds.length > 0) {
+    const { data: formerReviewData } = await supabase
+      .from("reviews")
+      .select("proposal_id, reviewer_id")
+      .in("proposal_id", proposalIds);
+    for (const rv of (formerReviewData as
+      | { proposal_id: string; reviewer_id: string }[]
+      | null) ?? []) {
+      if (!formerIds.has(rv.reviewer_id)) continue;
+      const seen = formerByProposal.get(rv.proposal_id) ?? new Set<string>();
+      seen.add(rv.reviewer_id);
+      formerByProposal.set(rv.proposal_id, seen);
+    }
+  }
+  const reviewerCountFor = (proposalId: string) =>
+    activeReviewerCount + (formerByProposal.get(proposalId)?.size ?? 0);
 
   const submittedCount = rows.filter((r) => r.state === "submitted").length;
 
@@ -334,7 +368,7 @@ export default async function ManagerProposalsPage({
                               <div className="text-xs flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
                                 <span>
                                   Reviews: {s?.reviews_submitted ?? 0} of{" "}
-                                  {totalReviewers} submitted
+                                  {reviewerCountFor(r.proposal_id)} submitted
                                   {s && s.reviews_in_progress > 0
                                     ? ` (${s.reviews_in_progress} in progress)`
                                     : ""}

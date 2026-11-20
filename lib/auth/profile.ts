@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export type ProfileRole = "researcher" | "committee" | "manager";
-export type ProfileStatus = "pending" | "approved" | "rejected";
+export type ProfileStatus = "pending" | "approved" | "rejected" | "inactive";
 
 export type Profile = {
   id: string;
@@ -54,7 +54,8 @@ export const getUserAndProfile = cache(async function getUserAndProfile(): Promi
  * their profile. Every protected page redirects here so routing stays
  * consistent and server-enforced.
  *
- * - must_change_password          -> /auth/change-password (gate, overrides all)
+ * - former committee member       -> /inactive (gate, overrides all)
+ * - must_change_password          -> /auth/change-password (gate)
  * - manager                       -> /manager
  * - committee                     -> /committee
  * - approved researcher           -> /dashboard
@@ -63,6 +64,17 @@ export const getUserAndProfile = cache(async function getUserAndProfile(): Promi
  */
 export function homePathForProfile(profile: Profile | null): string {
   if (!profile) return "/pending";
+  // A committee member who is no longer approved has no home in the app. This
+  // is checked BEFORE the forced-password-change gate as well as before the
+  // role branch: there is no point making someone set a new password for an
+  // account that can no longer do anything, and an invited member who never
+  // signed in (must_change_password still true) can be deactivated like any
+  // other. Without this they would land on /committee and see an empty review
+  // dashboard with no explanation, because committee_dashboard() raises and
+  // every committee read policy returns nothing.
+  if (profile.role === "committee" && profile.status !== "approved") {
+    return "/inactive";
+  }
   // Forced password change takes precedence over every role home.
   if (profile.must_change_password) return "/auth/change-password";
   if (profile.role === "manager") return "/manager";

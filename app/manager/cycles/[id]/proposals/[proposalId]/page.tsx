@@ -70,7 +70,7 @@ type DetailProposal = {
 };
 
 type BudgetYear = { year_number: number; planned_amount: number | string };
-type Member = { id: string; full_name: string | null };
+type Member = { id: string; full_name: string | null; status: string };
 type ReviewRow = {
   id: string;
   reviewer_id: string;
@@ -145,10 +145,10 @@ export default async function ManagerProposalDetailPage({
 
   const { data: memberData } = await supabase
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, status")
     .eq("role", "committee")
     .order("full_name", { ascending: true });
-  const members = (memberData as Member[] | null) ?? [];
+  const allMembers = (memberData as Member[] | null) ?? [];
 
   const { data: reviewData } = await supabase
     .from("reviews")
@@ -159,6 +159,15 @@ export default async function ManagerProposalDetailPage({
   const reviews = (reviewData as ReviewRow[] | null) ?? [];
   const reviewByReviewer = new Map<string, ReviewRow>(
     reviews.map((r) => [r.reviewer_id, r]),
+  );
+
+  // Who belongs in this proposal's scoring grid: an ACTIVE committee member, or
+  // anyone who actually reviewed it. A member who has since cycled off still
+  // appears on the proposals they scored -- their review is part of that
+  // proposal's record -- and disappears from the ones they never touched,
+  // instead of sitting there forever as a row that will never be filled in.
+  const members = allMembers.filter(
+    (m) => m.status === "approved" || reviewByReviewer.has(m.id),
   );
 
   // Child full proposal (if invited) for the "already created" link + gating.
